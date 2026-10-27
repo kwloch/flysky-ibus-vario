@@ -47,10 +47,25 @@ Moduł **emuluje sensory i-Bus**: odbiornik odpytuje kolejne adresy, a my odpowi
 ⚠️ `0xF9` (FlySky „Altitude”, 2 B w metrach) **nie jest mapowany** przez OpenI6X — nie warto go wysyłać.
 Pełna lista typów (0x00–0xF9) jest w `oXs_on_RP2040/src/ibus.h` — najlepsza dostępna enumeracja standardu.
 
-**Sprzęt — najczęstszy błąd**
+**Sprzęt — jak zabezpieczyć linię (dwie szkoły, wybór zależy od firmware)**
 
-* Pin TX mikrokontrolera **nie może** być podłączony na sztywno do linii i-Bus. Wymagane jest
-  **rezystor ~1,2 kΩ** albo **dioda 1N4148** (katoda przy TX MCU) — inaczej odbiornik nie odpyta sensora.
+W i-Bus jedna linia jest dzielona: NADaje odbiornik, NAdaje sensor. Sposób podłączenia TX zależy od tego,
+czy MCU trzyma TX w stanie wyjściowym cały czas:
+
+* **A. TX trwale w stanie wyjściowym (tak robi biblioteka `IBusBM` na AVR/ESP32)** — potrzebny
+  **rezystor ~1,2 kΩ w szereg** albo **dioda 1N4148** (katoda przy TX MCU), żeby odbiornik mógł ściągnąć
+  linię do zera, gdy MCU milczy.
+* **B. TX tylko na czas transmisji (tak robi MSRC na RP2040)** — pin TX jest w spoczynku **odłączony od
+  peryferium** (wysoka impedancja), więc nic nie „walczy” z nadajnikiem odbiornika; wystarcza
+  **100 Ω w szereg** jako ochrona (autor MSRC pisze wprost: *A 100Ω resistor is recommended. This is optional,
+  as the RP2040 includes internal protection resistors.*). W kodzie MSRC to `uart0_begin(115200, GPIO0, GPIO1,
+  …, half_duplex = true)`: przy każdym bajcie pin wchodzi na `GPIO_FUNC_UART`, po `uart_tx_wait_blocking`
+  wraca na `GPIO_FUNC_NULL`, a RX jest wyłączany na czas nadawania.
+
+**Wybór dla tego projektu:** opcja **B** — na ESP32-C6 przełączamy pin TX między `OUTPUT` (nadawanie)
+i `INPUT` (spoczynek) programowo, więc nie trzeba diody; 100 Ω w szereg zostawiamy profilaktycznie.
+Opcja A zostaje jako fallback, gdyby odbiornik gubił ramki.
+
 * Zasilanie: 3,3 V dla MS5611 (GY-63 ma własny LDO, ale linie I²C są 3,3 V).
 * Po podłączeniu: w aparaturze **Delete all sensors → Discover new sensors** (stare wpisy zostają puste).
 
