@@ -5,8 +5,8 @@ Telemetria **i-Bus (AFHDS 2A)** dla aparatury FlySky z firmware **OpenI6X** — 
 Cel projektu: mały, lekki moduł, który wysyła do odbiornika FlySky (np. FS-iA6B) wysokość względną
 i prędkość wznoszenia, bez kupowania fabrycznych sensorów.
 
-Status: **przygotowanie** — repo zawiera research (standard, źródła, wybór targetów). Pierwszy na warsztat
-idzie **ESP32-C6-Zero**, potem mały moduł **nRF52840**.
+Status: **w toku** — działa odczyt ciśnienia i temperatury z MS5611 po I²C. Pierwszy target to
+**ESP32-C6-Zero**, potem mały moduł **nRF52840**; kolejne kroki to wysokość, vspd i emulacja i-Bus.
 
 ---
 
@@ -112,13 +112,15 @@ Uwagi:
 ## 4. PlatformIO — struktura
 
 ```
-platformio.ini          # [env:esp32-c6-zero], [env:nrf52840]
+platformio.ini          # [env:esp32-c6-zero], [env:nrf52840], [env:native]
 boards/                 # tylko jeśli trzeba własny board def (np. moduł nRF52840)
 src/
-  main.cpp              # init I²C, pętla: odczyt baro → wysokość/vspd → ramki i-Bus
-  vario.h / vario.cpp   # MS5611: ciśnienie, temperatura, wysokość względna, filtracja vspd
-  ibus.h / ibus.cpp     # emulacja sensorów i-Bus: 0x83 (Alt), 0x09 (Vspd)
+  main.cpp              # init I²C, log ciśnienia i temperatury co ~1 s
+  ms5611.h / ms5611.cpp # sterownik MS5611: PROM/CRC4, konwersje, kompensacja, błędy
 include/
+  ms5611_math.h         # czysta matematyka: CRC4, kompensacja, kontrola zakresu
+test/
+  test_ms5611_math/     # testy hostowe Unity (CRC4, wektory datasheetu, zakres)
 lib/
 docs/                   # notatki, zrzuty ramek, pomiary
 ```
@@ -129,8 +131,31 @@ Wspólne ustawienia (`framework`, `monitor_speed`) są w sekcji `[env]`, a róż
 w `[env:esp32-c6-zero]` i `[env:nrf52840]`. Board nRF52840 pozostaje prowizoryczny
 (`adafruit_feather_nrf52840`) do czasu identyfikacji modułu i bootloadera.
 
-Pełny build (`pio run`) będzie możliwy po dodaniu katalogu `src/`; na razie konfiguracja jest
-weryfikowana przez `pio project config`.
+Pełny build firmware:
+
+```bash
+pio run -e esp32-c6-zero
+```
+
+Bez `-e` PlatformIO nadal buduje domyślny target `esp32-c6-zero`. Wgranie i podgląd logów po USB:
+
+```bash
+pio run -e esp32-c6-zero -t upload
+pio device monitor -e esp32-c6-zero
+```
+
+Firmware loguje co około sekundę linię `MS5611: t=<ms> P=<Pa> Pa T=<°C> C`. Błędy inicjalizacji
+(`init FAILED ...; retry in 1000 ms`) i pojedynczego odczytu (`read FAILED ...; continuing`) są
+raportowane osobno, a program ponawia próby zamiast się zawieszać.
+
+Testy hostowe (bez podłączonego ESP32-C6 ani GY-63) uruchamia się w środowisku `native`:
+
+```bash
+pio test -e native
+```
+
+Środowisko `native` korzysta z Unity i nie dziedziczy frameworka Arduino, więc testy kompilują się
+i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego targetu `esp32-c6-zero`.
 
 ## 5. Gdzie szukać informacji (źródła)
 
@@ -163,7 +188,7 @@ weryfikowana przez `pio project config`.
 
 - [x] Research: standard i-Bus, ID sensorów, wybór targetów, źródła
 - [x] Repo + `platformio.ini` na dwa targety
-- [ ] Odczyt MS5611 po I²C (ciśnienie + temperatura, sanity check PROM)
+- [x] Odczyt MS5611 po I²C (ciśnienie + temperatura, sanity check PROM)
 - [ ] Wysokość względna + prędkość wznoszenia (filtracja, opóźnienie < ~200 ms)
 - [ ] Emulacja sensorów i-Bus: `0x83` i `0x09` na ESP32-C6
 - [ ] Test na FS-iA6B + FS-i6X (OpenI6X 2.3.0) — pojawienie się Alt i Vspd
@@ -174,6 +199,8 @@ weryfikowana przez `pio project config`.
 
 * **PlatformIO board def `waveshare_esp32_c6_zero` mówi 4 MB flash**, a płytka ma 8 MB — bez nadpisania
   `board_upload.flash_size = 8MB` (lub partycji) build/upload potrafi się rozjechać.
+* **IBusBM 1.1.4 nie kompiluje się z Arduino core 3.x** (zmiana API timerów). `platformio.ini` pinuje
+  poprawkę z PR `bmellink/IBusBM#51`; wrócić do wydania upstream, gdy poprawka zostanie wydana.
 * **Brak rezystora/diody na TX** → odbiornik nigdy nie odpyta sensora i w aparaturze nie pojawi się żaden wpis.
 * **`0xF9` nie jest mapowane** przez OpenI6X — wysyłanie go nie da wysokości.
 * Klon RP2040 użyty wcześniej do testów okazał się uszkodzony (zapis flash trafiał wyłącznie do pierwszej
