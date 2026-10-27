@@ -109,7 +109,7 @@ Uwagi:
   bez bootloadera zostaje **SWD** (DAPLink / ST-Link / J-Link).
 * nRF52840 ma kilka UART-ów, więc półdupleks i-Bus nie jest problemem; zegar 64 MHz, Cortex-M4F.
 
-## 4. PlatformIO — planowana struktura
+## 4. PlatformIO — struktura
 
 ```
 platformio.ini          # [env:esp32-c6-zero], [env:nrf52840]
@@ -123,24 +123,14 @@ lib/
 docs/                   # notatki, zrzuty ramek, pomiary
 ```
 
-Szkic `platformio.ini` (do dostrojenia po pierwszym buildzie):
+Konfiguracja docelowa znajduje się w [`platformio.ini`](./platformio.ini) w katalogu głównym.
+To źródło prawdy dla obu targetów; szkic z researchu został zastąpiony realnym plikiem.
+Wspólne ustawienia (`framework`, `monitor_speed`) są w sekcji `[env]`, a różnice platform/boardów
+w `[env:esp32-c6-zero]` i `[env:nrf52840]`. Board nRF52840 pozostaje prowizoryczny
+(`adafruit_feather_nrf52840`) do czasu identyfikacji modułu i bootloadera.
 
-```ini
-[env:esp32-c6-zero]
-platform = espressif32@8.0.0
-board = waveshare_esp32_c6_zero
-framework = arduino
-board_upload.flash_size = 8MB
-monitor_speed = 115200
-lib_deps =
-    bmellink/IBusBM
-
-[env:nrf52840]
-platform = nordicnrf52@11.0.0
-board = adafruit_feather_nrf52840   ; do zmiany po identyfikacji modułu
-framework = arduino
-monitor_speed = 115200
-```
+Pełny build (`pio run`) będzie możliwy po dodaniu katalogu `src/`; na razie konfiguracja jest
+weryfikowana przez `pio project config`.
 
 ## 5. Gdzie szukać informacji (źródła)
 
@@ -172,7 +162,7 @@ monitor_speed = 115200
 ## 6. Roadmap
 
 - [x] Research: standard i-Bus, ID sensorów, wybór targetów, źródła
-- [ ] Repo + `platformio.ini` na dwa targety
+- [x] Repo + `platformio.ini` na dwa targety
 - [ ] Odczyt MS5611 po I²C (ciśnienie + temperatura, sanity check PROM)
 - [ ] Wysokość względna + prędkość wznoszenia (filtracja, opóźnienie < ~200 ms)
 - [ ] Emulacja sensorów i-Bus: `0x83` i `0x09` na ESP32-C6
