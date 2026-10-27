@@ -1,10 +1,10 @@
-# Spec Delta
+# platformio-configuration Specification
 
 ## Purpose
 
 Definiuje dwa środowiska budowania PlatformIO dla projektu: pierwszy target ESP32-C6-Zero oraz docelowy moduł nRF52840, wraz z ustawieniami wymaganymi przez ich sprzęt.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Dwa niezależne środowiska budowania
 
@@ -43,7 +43,7 @@ Projekt SHALL udostępniać dwa niezależne środowiska PlatformIO, `esp32-c6-ze
 - **WHEN** użytkownik buduje środowisko `nrf52840`
 - **THEN** PlatformIO używa platformy `nordicnrf52` i frameworka Arduino
 
-#### Scenario: Provizoryczny board jest jawnie zadeklarowany
+#### Scenario: Prowizoryczny board jest jawnie zadeklarowany
 
 - **WHEN** użytkownik sprawdzi konfigurację środowiska `nrf52840`
 - **THEN** board to `adafruit_feather_nrf52840`, a konfiguracja wskazuje, że wymaga on zmiany po identyfikacji modułu
