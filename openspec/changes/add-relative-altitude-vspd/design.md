@@ -100,7 +100,7 @@ Alternatywa: `float` na wyjściu. Odrzucona, bo i-Bus wymaga liczb całkowitych,
 
 ### Harmonogram w `main.cpp` bez blokowania
 
-Użyć `millis()` i trzech terminów: próbka ciśnienia co 50 ms, log vario co 200 ms, log MS5611 co 1000 ms. Po każdym odczycie termin przesuwać o interwał (`next = millis() + interval`), aby uniknąć serii zaległych próbek po dłuższej operacji. Odczyt MS5611 trwa ~20 ms, więc mieści się w okresie 50 ms z zapasem ~30 ms.
+Użyć `millis()` i trzech terminów: próbka ciśnienia co 50 ms, log vario co 200 ms, log MS5611 co 1000 ms. Terminy przesuwać o interwał od chwili rozpoczęcia próbki lub logu (`next = start + interval`), aby zachować 20 Hz i 5 Hz; jeśli odczyt przekroczy termin, pominąć zaległe sloty i zaplanować kolejną próbkę od bieżącego czasu, aby uniknąć serii zaległych próbek po dłuższej operacji. Odczyt MS5611 trwa ~20 ms, więc mieści się w okresie 50 ms z zapasem ~30 ms.
 
 Alternatywa: timer sprzętowy lub przerwanie. Odrzucona — I²C i `Serial` nie są bezpieczne w przerwaniu, a 20 Hz w pętli głównej wystarcza. Alternatywa: zachować odczyt co 1 s i interpolować. Odrzucona, bo nie spełnia budżetu 200 ms.
 

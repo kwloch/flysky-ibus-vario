@@ -5,8 +5,9 @@ Telemetria **i-Bus (AFHDS 2A)** dla aparatury FlySky z firmware **OpenI6X** — 
 Cel projektu: mały, lekki moduł, który wysyła do odbiornika FlySky (np. FS-iA6B) wysokość względną
 i prędkość wznoszenia, bez kupowania fabrycznych sensorów.
 
-Status: **w toku** — działa odczyt ciśnienia i temperatury z MS5611 po I²C. Pierwszy target to
-**ESP32-C6-Zero**, potem mały moduł **nRF52840**; kolejne kroki to wysokość, vspd i emulacja i-Bus.
+Status: **w toku** — działa odczyt ciśnienia i temperatury z MS5611 po I²C oraz wysokość względna
+i filtrowana prędkość wznoszenia. Pierwszy target to **ESP32-C6-Zero**, potem mały moduł
+**nRF52840**; kolejny krok to emulacja i-Bus.
 
 ---
 
@@ -115,12 +116,14 @@ Uwagi:
 platformio.ini          # [env:esp32-c6-zero], [env:nrf52840], [env:native]
 boards/                 # tylko jeśli trzeba własny board def (np. moduł nRF52840)
 src/
-  main.cpp              # init I²C, log ciśnienia i temperatury co ~1 s
+  main.cpp              # 20 Hz próbkowanie, log vario 5 Hz i ciśnienia 1 Hz
   ms5611.h / ms5611.cpp # sterownik MS5611: PROM/CRC4, konwersje, kompensacja, błędy
 include/
   ms5611_math.h         # czysta matematyka: CRC4, kompensacja, kontrola zakresu
+  vario_math.h          # wysokość z ciśnienia, referencja startowa, filtr alpha-beta vspd
 test/
   test_ms5611_math/     # testy hostowe Unity (CRC4, wektory datasheetu, zakres)
+  test_vario_math/      # testy wysokości, filtra, opóźnienia i obsługi przerw
 lib/
 docs/                   # notatki, zrzuty ramek, pomiary
 ```
@@ -144,9 +147,18 @@ pio run -e esp32-c6-zero -t upload
 pio device monitor -e esp32-c6-zero
 ```
 
-Firmware loguje co około sekundę linię `MS5611: t=<ms> P=<Pa> Pa T=<°C> C`. Błędy inicjalizacji
-(`init FAILED ...; retry in 1000 ms`) i pojedynczego odczytu (`read FAILED ...; continuing`) są
-raportowane osobno, a program ponawia próby zamiast się zawieszać.
+Firmware próbkuje ciśnienie co 50 ms (20 Hz) i co około 200 ms (5 Hz) loguje linię
+`VARIO: t=<ms> alt=<m> m vspd=<m/s> m/s`. Co około sekundę nadal pojawia się
+`MS5611: t=<ms> P=<Pa> Pa T=<°C> C`. Błędy inicjalizacji (`init FAILED ...; retry in 1000 ms`)
+i pojedynczego odczytu (`read FAILED ...; continuing`) są raportowane osobno, a program ponawia
+próby zamiast się zawieszać.
+
+Pierwszy prawidłowy pomiar po inicjalizacji wyznacza ciśnienie odniesienia — wtedy `alt` wynosi 0.
+Wysokość jest dodatnia powyżej miejsca startu i ujemna poniżej. Wewnętrznie wysokość i vspd są
+liczone w cm i cm/s (format gotowy pod przyszłe ramki i-Bus), a w logu pokazywane w m i m/s.
+Prędkość wznoszenia pochodzi z filtra alpha-beta (`alpha=0.4`, `beta=0.2`) na wysokości; filtr
+spełnia założone opóźnienie ~200 ms, a po przerwie w pomiarach dłuższej niż 250 ms wznawia pracę
+bez fałszywego skoku. Nieudane lub poza-zakresowe odczyty nie aktualizują estymatora.
 
 Testy hostowe (bez podłączonego ESP32-C6 ani GY-63) uruchamia się w środowisku `native`:
 
@@ -189,7 +201,7 @@ i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego ta
 - [x] Research: standard i-Bus, ID sensorów, wybór targetów, źródła
 - [x] Repo + `platformio.ini` na dwa targety
 - [x] Odczyt MS5611 po I²C (ciśnienie + temperatura, sanity check PROM)
-- [ ] Wysokość względna + prędkość wznoszenia (filtracja, opóźnienie < ~200 ms)
+- [x] Wysokość względna + prędkość wznoszenia (filtracja, opóźnienie < ~200 ms)
 - [ ] Emulacja sensorów i-Bus: `0x83` i `0x09` na ESP32-C6
 - [ ] Test na FS-iA6B + FS-i6X (OpenI6X 2.3.0) — pojawienie się Alt i Vspd
 - [ ] Target nRF52840 (po identyfikacji modułu i bootloadera)

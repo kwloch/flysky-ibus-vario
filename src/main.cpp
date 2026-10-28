@@ -2,6 +2,7 @@
 #include <Wire.h>
 
 #include "ms5611.h"
+#include "vario_math.h"
 
 namespace {
 
@@ -9,13 +10,23 @@ constexpr uint8_t kSdaPin = 0;
 constexpr uint8_t kSclPin = 1;
 constexpr uint32_t kI2cHz = 400000;
 constexpr uint8_t kAddress = 0x77;
-constexpr uint32_t kReadIntervalMs = 1000;
+constexpr uint32_t kSampleIntervalMs = kVarioSampleIntervalMs;
+constexpr uint32_t kVarioLogIntervalMs = kVarioPublishIntervalMs;
+constexpr uint32_t kPressureLogIntervalMs = 1000;
 constexpr uint32_t kRetryIntervalMs = 1000;
 
 MS5611 sensor(Wire, kAddress);
+VarioEstimator vario;
 bool initialized = false;
 uint32_t nextInitAttemptMs = 0;
-uint32_t nextReadMs = 0;
+uint32_t nextSampleMs = 0;
+uint32_t nextVarioLogMs = 0;
+uint32_t nextPressureLogMs = 0;
+uint32_t lastSampleMs = 0;
+
+bool timeReached(uint32_t now, uint32_t deadline) {
+  return static_cast<int32_t>(now - deadline) >= 0;
+}
 
 void logBoot() {
   Serial.printf("MS5611: boot addr=0x%02X SDA=%u SCL=%u %lukHz\n", kAddress, kSdaPin,
@@ -38,6 +49,25 @@ void logSample(uint32_t nowMs) {
                 static_cast<long>(magnitude / 100), static_cast<long>(magnitude % 100));
 }
 
+void logVario(uint32_t nowMs) {
+  const VarioReading reading = vario.reading();
+  if (!reading.valid) {
+    return;
+  }
+
+  const int32_t altitude = reading.altitudeCentiM;
+  const int32_t climbRate = reading.climbRateCentiMps;
+  const int32_t altitudeMagnitude = altitude < 0 ? -altitude : altitude;
+  const int32_t climbRateMagnitude = climbRate < 0 ? -climbRate : climbRate;
+
+  Serial.printf("VARIO: t=%lu alt=%s%ld.%02ld m vspd=%s%ld.%02ld m/s\n",
+                static_cast<unsigned long>(nowMs), altitude < 0 ? "-" : "",
+                static_cast<long>(altitudeMagnitude / 100),
+                static_cast<long>(altitudeMagnitude % 100), climbRate < 0 ? "-" : "",
+                static_cast<long>(climbRateMagnitude / 100),
+                static_cast<long>(climbRateMagnitude % 100));
+}
+
 bool tryInit() {
   const Ms5611Error error = sensor.begin();
   if (error == Ms5611Error::Ok) {
@@ -49,6 +79,14 @@ bool tryInit() {
                 static_cast<unsigned long>(millis()), ms5611ErrorName(error),
                 static_cast<unsigned long>(kRetryIntervalMs));
   return false;
+}
+
+void scheduleAfterInit(uint32_t now) {
+  vario.reset();
+  lastSampleMs = now;
+  nextSampleMs = now + kSampleIntervalMs;
+  nextVarioLogMs = now + kVarioLogIntervalMs;
+  nextPressureLogMs = now + kPressureLogIntervalMs;
 }
 
 }  // namespace
@@ -63,29 +101,55 @@ void setup() {
   initialized = tryInit();
 
   const uint32_t now = millis();
+  if (initialized) {
+    scheduleAfterInit(now);
+  }
   nextInitAttemptMs = now + kRetryIntervalMs;
-  nextReadMs = now + kReadIntervalMs;
 }
 
 void loop() {
   const uint32_t now = millis();
 
   if (!initialized) {
-    if (static_cast<int32_t>(now - nextInitAttemptMs) >= 0) {
+    if (timeReached(now, nextInitAttemptMs)) {
       initialized = tryInit();
-      nextInitAttemptMs = millis() + kRetryIntervalMs;
+      const uint32_t attemptMs = millis();
+      if (initialized) {
+        scheduleAfterInit(attemptMs);
+      }
+      nextInitAttemptMs = attemptMs + kRetryIntervalMs;
     }
     return;
   }
 
-  if (static_cast<int32_t>(now - nextReadMs) >= 0) {
+  if (timeReached(now, nextSampleMs)) {
+    const uint32_t sampleMs = millis();
     const Ms5611Error error = sensor.read();
     if (error == Ms5611Error::Ok) {
-      logSample(millis());
+      const uint32_t dtMs = sampleMs - lastSampleMs;
+      vario.update(sensor.sample().pressurePa, dtMs);
+      lastSampleMs = sampleMs;
     } else {
       Serial.printf("MS5611: t=%lu read FAILED %s; continuing\n",
-                    static_cast<unsigned long>(millis()), ms5611ErrorName(error));
+                    static_cast<unsigned long>(sampleMs), ms5611ErrorName(error));
     }
-    nextReadMs = millis() + kReadIntervalMs;
+    nextSampleMs = sampleMs + kSampleIntervalMs;
+    if (timeReached(millis(), nextSampleMs)) {
+      nextSampleMs = millis() + kSampleIntervalMs;
+    }
+  }
+
+  if (timeReached(now, nextVarioLogMs)) {
+    const uint32_t logMs = millis();
+    logVario(logMs);
+    nextVarioLogMs = logMs + kVarioLogIntervalMs;
+  }
+
+  if (timeReached(now, nextPressureLogMs)) {
+    const uint32_t logMs = millis();
+    if (sensor.hasSample()) {
+      logSample(logMs);
+    }
+    nextPressureLogMs = logMs + kPressureLogIntervalMs;
   }
 }
