@@ -6,6 +6,10 @@
 #include "ms5611.h"
 #include "vario_math.h"
 
+#ifndef PRESSURE_SENSOR_DIAGNOSTIC
+#define PRESSURE_SENSOR_DIAGNOSTIC 1
+#endif
+
 namespace {
 
 constexpr uint8_t kSdaPin = 0;
@@ -67,6 +71,31 @@ void logSample(uint32_t nowMs) {
                 static_cast<long>(sample.pressurePa), temperature < 0 ? "-" : "",
                 static_cast<long>(magnitude / 100), static_cast<long>(magnitude % 100));
 }
+
+#if PRESSURE_SENSOR_DIAGNOSTIC
+void logDiagnostic(uint32_t nowMs) {
+  const Prom& prom = sensor.prom();
+  const Sample ms5611 = compensate(prom, sensor.rawD1(), sensor.rawD2());
+  const Sample ms5607 = compensateMs5607(prom, sensor.rawD1(), sensor.rawD2());
+  const int32_t t5611 = ms5611.temperatureCentiC;
+  const int32_t t5607 = ms5607.temperatureCentiC;
+  const int32_t t5611Magnitude = t5611 < 0 ? -t5611 : t5611;
+  const int32_t t5607Magnitude = t5607 < 0 ? -t5607 : t5607;
+
+  Serial.printf(
+      "DIAG: t=%lu D1=%lu D2=%lu P5611=%ld Pa P5607=%ld Pa "
+      "T5611=%s%ld.%02ld C T5607=%s%ld.%02ld C\n",
+      static_cast<unsigned long>(nowMs),
+      static_cast<unsigned long>(sensor.rawD1()),
+      static_cast<unsigned long>(sensor.rawD2()),
+      static_cast<long>(ms5611.pressurePa),
+      static_cast<long>(ms5607.pressurePa), t5611 < 0 ? "-" : "",
+      static_cast<long>(t5611Magnitude / 100),
+      static_cast<long>(t5611Magnitude % 100), t5607 < 0 ? "-" : "",
+      static_cast<long>(t5607Magnitude / 100),
+      static_cast<long>(t5607Magnitude % 100));
+}
+#endif
 
 void logVario(uint32_t nowMs) {
   const VarioReading reading = vario.reading();
@@ -181,6 +210,11 @@ void loop() {
     const uint32_t logMs = millis();
     if (sensor.hasSample()) {
       logSample(logMs);
+#if PRESSURE_SENSOR_DIAGNOSTIC
+      if (sensor.lastError() == Ms5611Error::Ok) {
+        logDiagnostic(logMs);
+      }
+#endif
     }
     nextPressureLogMs = logMs + kPressureLogIntervalMs;
   }

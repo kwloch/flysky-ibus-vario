@@ -70,6 +70,23 @@ void testCompensationSecondOrderBelowMinusFifteenDegrees() {
   TEST_ASSERT_TRUE(inRange(sample));
 }
 
+void testCompensationMs5607IsDoubleMs5611() {
+  Prom prom = datasheetProm();
+  const Prom before = prom;
+  const Sample ms5611 = compensate(prom, 9085466, 8569150);
+  const Sample ms5607 = compensateMs5607(prom, 9085466, 8569150);
+
+  TEST_ASSERT_EQUAL_INT32(100009, ms5611.pressurePa);
+  TEST_ASSERT_EQUAL_INT32(2007, ms5611.temperatureCentiC);
+  TEST_ASSERT_EQUAL_INT32(200018, ms5607.pressurePa);
+  TEST_ASSERT_EQUAL_INT32(2007, ms5607.temperatureCentiC);
+  TEST_ASSERT_FALSE(inRange(ms5607));
+
+  for (uint8_t i = 0; i < kMs5611PromWords; ++i) {
+    TEST_ASSERT_EQUAL_HEX16(before.words[i], prom.words[i]);
+  }
+}
+
 void testRangeAcceptsInclusiveBoundaries() {
   TEST_ASSERT_TRUE(inRange(Sample{10000, -4000}));
   TEST_ASSERT_TRUE(inRange(Sample{120000, 8500}));
@@ -92,6 +109,7 @@ int main(int, char**) {
   RUN_TEST(testCompensationNominalDatasheetVector);
   RUN_TEST(testCompensationSecondOrderBelowTwentyDegrees);
   RUN_TEST(testCompensationSecondOrderBelowMinusFifteenDegrees);
+  RUN_TEST(testCompensationMs5607IsDoubleMs5611);
   RUN_TEST(testRangeAcceptsInclusiveBoundaries);
   RUN_TEST(testRangeRejectsOutOfBounds);
   return UNITY_END();

@@ -188,6 +188,38 @@ filtr jest nastawiony na stabilny vspd kosztem czasu odpowiedzi ~0,5–1 s, a po
 dłuższej niż 250 ms wznawia pracę bez fałszywego skoku. Nieudane lub poza-zakresowe odczyty nie
 aktualizują estymatora.
 
+### Diagnostyka typu czujnika ciśnienia (tymczasowa)
+
+Niektóre moduły GY-63 mają **MS5607** zamiast MS5611. Oba mają ten sam wzór temperatury, ale inne
+`OFF`/`SENS`, więc firmware liczący wzorem MS5611 może pokazywać ciśnienie ~2x mniejsze (np. 49 kPa
+zamiast ~98 kPa na 300 m n.p.m.). Dlatego firmware domyślnie loguje co około 1 s dodatkową linię:
+
+```text
+DIAG: t=<ms> D1=<raw> D2=<raw> P5611=<Pa> P5607=<Pa> T5611=<°C> T5607=<°C>
+```
+
+`P5611`/`T5611` to istniejąca kompensacja MS5611, a `P5607`/`T5607` — niezależna kompensacja MS5607
+z tych samych surowych D1/D2. Diagnostyka nie zmienia `VARIO:`, `MS5611:` ani Alt/Vspd po i-Bus.
+
+Porównaj wynik z zewnętrzną referencją (np. Aqara ~97 969 Pa na ~300 m n.p.m.):
+
+| `P5611` | `P5607` | Wniosek |
+|---|---|---|
+| ~49 kPa | ~98 kPa | czujnik MS5607, firmware używa złego wzoru |
+| ~98 kPa | ~195 kPa | czujnik MS5611; problem leży gdzie indziej |
+| oba daleko od referencji | — | sprawdź PROM, odczyt i zakres |
+
+Wyłączenie diagnostyki:
+
+```bash
+PLATFORMIO_BUILD_FLAGS="-DPRESSURE_SENSOR_DIAGNOSTIC=0" pio run -e esp32-c6-zero
+```
+
+Po rozstrzygnięciu typu czujnika należy wyłączyć lub usunąć diagnostykę i zaplanować właściwą
+poprawkę (wsparcie MS5607 albo wymiana modułu). Testy hostowe pokrywają pierwszy rząd MS5607
+(różnica 2x); drugi rząd jest implementowany z datasheetu MS5607 i nie ma osobnego wektora w
+repozytorium.
+
 Przy starcie firmware rejestruje dwa sensory i-Bus: Alt `0x83` (4 B, cm, `int32_t`) i Vspd `0x09`
 (2 B, cm/s, `int16_t`, nasycany do zakresu). Do uzyskania referencji wysyłane są zera, a potem
 wartości aktualizowane są razem z publikacją vario co ~200 ms. Log startowy

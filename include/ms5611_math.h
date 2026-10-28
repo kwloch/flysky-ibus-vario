@@ -129,6 +129,39 @@ inline Sample compensate(const Prom& prom, uint32_t d1, uint32_t d2) {
   return Sample{static_cast<int32_t>(pressure), static_cast<int32_t>(temperature)};
 }
 
+inline Sample compensateMs5607(const Prom& prom, uint32_t d1, uint32_t d2) {
+  const int32_t dt = static_cast<int32_t>(d2) -
+                     static_cast<int32_t>(static_cast<uint32_t>(prom.words[5]) << 8);
+
+  int64_t temperature = 2000 + ((static_cast<int64_t>(dt) * prom.words[6]) >> 23);
+  int64_t offset = (static_cast<int64_t>(prom.words[2]) << 17) +
+                   ((static_cast<int64_t>(prom.words[4]) * dt) >> 6);
+  int64_t sensitivity = (static_cast<int64_t>(prom.words[1]) << 16) +
+                        ((static_cast<int64_t>(prom.words[3]) * dt) >> 7);
+
+  if (temperature < 2000) {
+    const int64_t temperatureDelta = temperature - 2000;
+    const int64_t t2 = (static_cast<int64_t>(dt) * dt) >> 31;
+    int64_t offset2 = (61 * temperatureDelta * temperatureDelta) / 16;
+    int64_t sensitivity2 = 2 * temperatureDelta * temperatureDelta;
+
+    if (temperature < -1500) {
+      const int64_t lowTemperatureDelta = temperature + 1500;
+      offset2 += 15 * lowTemperatureDelta * lowTemperatureDelta;
+      sensitivity2 += 8 * lowTemperatureDelta * lowTemperatureDelta;
+    }
+
+    temperature -= t2;
+    offset -= offset2;
+    sensitivity -= sensitivity2;
+  }
+
+  const int64_t pressure =
+      (((static_cast<int64_t>(d1) * sensitivity) >> 21) - offset) >> 15;
+
+  return Sample{static_cast<int32_t>(pressure), static_cast<int32_t>(temperature)};
+}
+
 inline bool inRange(const Sample& sample) {
   return sample.pressurePa >= kMs5611MinPressurePa &&
          sample.pressurePa <= kMs5611MaxPressurePa &&
