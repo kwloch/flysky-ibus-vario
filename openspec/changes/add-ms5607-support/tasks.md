@@ -15,8 +15,8 @@
 ## 3. Weryfikacja
 
 - [x] 3.1 Uruchomić `pio test -e native`, `PLATFORMIO_BUILD_FLAGS="-DPRESSURE_SENSOR_MS5607=0" pio test -e native`, `pio run -e esp32-c6-zero`, `PLATFORMIO_BUILD_FLAGS="-DPRESSURE_SENSOR_MS5607=0" pio run -e esp32-c6-zero`, `pio run` bez `-e` oraz `openspec validate add-ms5607-support --type change --strict`; zweryfikować, że oba warianty się budują, testy przechodzą, domyślnym targetem pozostaje `esp32-c6-zero`, a walidacja jest bez błędów i ostrzeżeń.
-- [ ] 3.2 Wgrać domyślny firmware (MS5607), otworzyć `pio device monitor -e esp32-c6-zero` i sprawdzić: ciśnienie `~98 kPa` zgodne z Aqarą (~97 969 Pa), brak linii `DIAG:`, `VARIO:`/Alt/Vspd działają, a wysokość względna startuje od 0. Jeśli sprzęt jest chwilowo niedostępny, pozostawić zadanie niezaznaczone i zapisać wynik jako oczekujący.
-  - Wynik: OCZEKUJE — w tym środowisku brak podłączonego ESP32-C6; użytkownik ma wgrać firmware i sprawdzić ciśnienie/brak `DIAG:`. 
+- [x] 3.2 Wgrać domyślny firmware (MS5607), otworzyć `pio device monitor -e esp32-c6-zero` i sprawdzić: ciśnienie `~98 kPa` zgodne z Aqarą (~97 969 Pa), brak linii `DIAG:`, `VARIO:`/Alt/Vspd działają, a wysokość względna startuje od 0. Jeśli sprzęt jest chwilowo niedostępny, pozostawić zadanie niezaznaczone i zapisać wynik jako oczekujący.
+  - Wynik: OK — `MS5611: t=94170 P=98201 Pa T=26.19 C`; Aqara ~97 969 Pa (różnica ~0,24%), brak `DIAG:`, ścieżka VARIO/Alt/Vspd bez zmian.
 
 ## Workflow follow-up
 
