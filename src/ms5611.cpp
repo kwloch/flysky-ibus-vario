@@ -62,8 +62,6 @@ bool MS5611::readAdc(uint32_t& value) {
 Ms5611Error MS5611::begin() {
   initialized_ = false;
   hasSample_ = false;
-  d1_ = 0;
-  d2_ = 0;
 
   wire_.beginTransmission(address_);
   if (wire_.endTransmission() != 0) {
@@ -129,10 +127,7 @@ Ms5611Error MS5611::read() {
     return lastError_;
   }
 
-  d1_ = d1;
-  d2_ = d2;
-
-  const Sample next = compensate(prom_, d1, d2);
+  const Sample next = compensateSelected(prom_, d1, d2);
   if (!inRange(next)) {
     lastError_ = Ms5611Error::OutOfRange;
     return lastError_;

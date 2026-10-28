@@ -1,11 +1,11 @@
 # flysky-ibus-vario
 
-Telemetria **i-Bus (AFHDS 2A)** dla aparatury FlySky z firmware **OpenI6X** — wariometr na **MS5611 (GY-63)**.
+Telemetria **i-Bus (AFHDS 2A)** dla aparatury FlySky z firmware **OpenI6X** — wariometr na **MS5611/MS5607 (GY-63)**.
 
 Cel projektu: mały, lekki moduł, który wysyła do odbiornika FlySky (np. FS-iA6B) wysokość względną
 i prędkość wznoszenia, bez kupowania fabrycznych sensorów.
 
-Status: **w toku** — działa odczyt ciśnienia i temperatury z MS5611 po I²C, wysokość względna
+Status: **w toku** — działa odczyt ciśnienia i temperatury z MS5611/MS5607 po I²C, wysokość względna
 i filtrowana prędkość wznoszenia oraz emulacja i-Bus (Alt `0x83`, Vspd `0x09`). Domyślny wariant
 `IBusBM` jest potwierdzony na aparaturze; test wariantu półdupleksowego pozostaje do wykonania.
 Pierwszy target to **ESP32-C6-Zero**, potem mały moduł **nRF52840**.
@@ -15,7 +15,7 @@ Pierwszy target to **ESP32-C6-Zero**, potem mały moduł **nRF52840**.
 ## 1. Architektura
 
 ```
-GY-63 (MS5611, I²C 0x77)  →  MCU (ESP32-C6 / nRF52840)  →  UART half-duplex 115200 8N1
+GY-63 (MS5611/MS5607, I²C 0x77)  →  MCU (ESP32-C6 / nRF52840)  →  UART half-duplex 115200 8N1
                                                           →  odbiornik FlySky (pin "sensor"/i-Bus)
                                                           →  aparatura FS-i6X (OpenI6X) → Discover sensors
 ```
@@ -65,11 +65,11 @@ czy MCU trzyma TX w stanie wyjściowym cały czas:
   wraca na `GPIO_FUNC_NULL`, a RX jest wyłączany na czas nadawania.
 
 **Wybór w tym projekcie:** domyślnie opcja **A** (`IBusBM`) — biblioteka obsługuje polling w przerwaniu
-timera 1 ms, więc blokujący odczyt MS5611 nie gubi ramek. Dostępna jest też opcja **B**
+timera 1 ms, więc blokujący odczyt MS5611/MS5607 nie gubi ramek. Dostępna jest też opcja **B**
 (`-DIBUS_TRANSPORT_HALFDUPLEX=1`) z własnym półdupleksem: GPIO5 jest przełączany między `OUTPUT`
 i `INPUT`, więc wystarcza 100 Ω w szeregu. Obie wersje wysyłają te same sensory.
 
-* Zasilanie: 3,3 V dla MS5611 (GY-63 ma własny LDO, ale linie I²C są 3,3 V).
+* Zasilanie: 3,3 V dla MS5611/MS5607 (GY-63 ma własny LDO, ale linie I²C są 3,3 V).
 * Po podłączeniu: w aparaturze **Delete all sensors** (przytrzymaj dłużej, aż pojawi się okno
   potwierdzenia) → **Discover new sensors** (stare wpisy zostają puste).
 
@@ -82,7 +82,7 @@ i `INPUT`, więc wystarcza 100 Ω w szeregu. Obie wersje wysyłają te same sens
 | MCU | ESP32-C6 (RISC-V, 160 MHz, Wi-Fi 6 / BLE 5 / 802.15.4) |
 | Flash | 8 MB (board def PlatformIO domyślnie mówi 4 MB — **trzeba nadpisać**) |
 | PlatformIO | `platform = espressif32` **8.0.0**, board `waveshare_esp32_c6_zero` |
-| Framework | `arduino` (biblioteki i-Bus i MS5611 są Arduino) — alternatywnie `espidf` |
+| Framework | `arduino` (biblioteki i-Bus i MS56xx są Arduino) — alternatywnie `espidf` |
 | Interfejsy | USB-C natywne (flash + logi po CDC), I²C, UART |
 
 Piny do potwierdzenia w tym projekcie (na płytce C6-Zero):
@@ -123,7 +123,7 @@ platformio.ini          # [env:esp32-c6-zero], [env:nrf52840], [env:native]
 boards/                 # tylko jeśli trzeba własny board def (np. moduł nRF52840)
 src/
   main.cpp              # 20 Hz próbkowanie, log vario 5 Hz i ciśnienia 1 Hz, integracja i-Bus
-  ms5611.h / ms5611.cpp # sterownik MS5611: PROM/CRC4, konwersje, kompensacja, błędy
+  ms5611.h / ms5611.cpp # sterownik MS5611/MS5607 (historyczna nazwa): PROM/CRC4, konwersje, kompensacja, błędy
   ibus_transport.cpp    # adaptery IBusBM i półdupleksowy oraz fabryka transportu
 include/
   ms5611_math.h         # czysta matematyka: CRC4, kompensacja, kontrola zakresu
@@ -169,7 +169,8 @@ Firmware próbkuje ciśnienie co 50 ms (20 Hz) i co około 200 ms (5 Hz) loguje 
 `VARIO: t=<ms> alt=<m> m vspd=<m/s> m/s`. Co około sekundę nadal pojawia się
 `MS5611: t=<ms> P=<Pa> Pa T=<°C> C`. Błędy inicjalizacji (`init FAILED ...; retry in 1000 ms`)
 i pojedynczego odczytu (`read FAILED ...; continuing`) są raportowane osobno, a program ponawia
-próby zamiast się zawieszać.
+próby zamiast się zawieszać. Prefiks `MS5611:` jest historyczny — obejmuje MS5611/MS5607; wartości
+są liczone wybranym wariantem.
 
 Ciśnienie i temperatura odniesienia to średnie z pierwszych 20 prawidłowych pomiarów po inicjalizacji
 (około 1 s przy 20 Hz); dopiero wtedy `alt` wynosi 0 i pojawiają się linie `VARIO:`. Wysokość jest
@@ -188,37 +189,24 @@ filtr jest nastawiony na stabilny vspd kosztem czasu odpowiedzi ~0,5–1 s, a po
 dłuższej niż 250 ms wznawia pracę bez fałszywego skoku. Nieudane lub poza-zakresowe odczyty nie
 aktualizują estymatora.
 
-### Diagnostyka typu czujnika ciśnienia (tymczasowa)
+### Wybór wariantu MS5611 / MS5607 (GY-63)
 
-Niektóre moduły GY-63 mają **MS5607** zamiast MS5611. Oba mają ten sam wzór temperatury, ale inne
-`OFF`/`SENS`, więc firmware liczący wzorem MS5611 może pokazywać ciśnienie ~2x mniejsze (np. 49 kPa
-zamiast ~98 kPa na 300 m n.p.m.). Dlatego firmware domyślnie loguje co około 1 s dodatkową linię:
-
-```text
-DIAG: t=<ms> D1=<raw> D2=<raw> P5611=<Pa> P5607=<Pa> T5611=<°C> T5607=<°C>
-```
-
-`P5611`/`T5611` to istniejąca kompensacja MS5611, a `P5607`/`T5607` — niezależna kompensacja MS5607
-z tych samych surowych D1/D2. Diagnostyka nie zmienia `VARIO:`, `MS5611:` ani Alt/Vspd po i-Bus.
-
-Porównaj wynik z zewnętrzną referencją (np. Aqara ~97 969 Pa na ~300 m n.p.m.):
-
-| `P5611` | `P5607` | Wniosek |
-|---|---|---|
-| ~49 kPa | ~98 kPa | czujnik MS5607, firmware używa złego wzoru |
-| ~98 kPa | ~195 kPa | czujnik MS5611; problem leży gdzie indziej |
-| oba daleko od referencji | — | sprawdź PROM, odczyt i zakres |
-
-Wyłączenie diagnostyki:
+Moduły GY-63 występują z MS5611 albo MS5607. Mają ten sam wzór temperatury, ale inne `OFF`/`SENS`,
+więc użycie złego wariantu daje ciśnienie ~2x mniejsze (np. 49 kPa zamiast ~98 kPa na 300 m n.p.m.).
+Potwierdzony moduł w tym projekcie to **MS5607**, więc domyślny build używa jego kompensacji:
 
 ```bash
-PLATFORMIO_BUILD_FLAGS="-DPRESSURE_SENSOR_DIAGNOSTIC=0" pio run -e esp32-c6-zero
+# domyślnie MS5607
+pio run -e esp32-c6-zero
+# wariant MS5611
+PLATFORMIO_BUILD_FLAGS="-DPRESSURE_SENSOR_MS5607=0" pio run -e esp32-c6-zero
 ```
 
-Po rozstrzygnięciu typu czujnika należy wyłączyć lub usunąć diagnostykę i zaplanować właściwą
-poprawkę (wsparcie MS5607 albo wymiana modułu). Testy hostowe pokrywają pierwszy rząd MS5607
-(różnica 2x); drugi rząd jest implementowany z datasheetu MS5607 i nie ma osobnego wektora w
-repozytorium.
+Wybór jest stały dla danego builda — firmware nie wykrywa typu automatycznie. Prefiks logu `MS5611:`
+jest historyczny i obejmuje całą rodzinę MS5611/MS5607; wartości są liczone wybranym wariantem.
+Testy hostowe pokrywają wektor MS5611 (`100009 Pa`/`20,07 °C`) i rzeczywisty wektor MS5607
+(`98 206 Pa`/`25,41 °C`); drugi rząd MS5607 jest implementowany z datasheetu i nie ma osobnego
+wektora w repozytorium.
 
 Przy starcie firmware rejestruje dwa sensory i-Bus: Alt `0x83` (4 B, cm, `int32_t`) i Vspd `0x09`
 (2 B, cm/s, `int16_t`, nasycany do zakresu). Do uzyskania referencji wysyłane są zera, a potem
@@ -253,11 +241,12 @@ i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego ta
 * [`OpenI6X/opentx`](https://github.com/OpenI6X/opentx) → `radio/src/telemetry/flysky_ibus.cpp` —
   co aparatura realnie czyta z ramek i-Bus (mapowanie ID → sensor).
 
-**Barometr MS5611**
+**Barometr MS5611 / MS5607**
 
 * Datasheet TE Connectivity MS5611-01BA03 (rozdzielczość 24 bit, kompensacja 2. rzędu, PROM z kalibracją).
-* [`RobTillaart/MS5611`](https://github.com/RobTillaart/MS5611) — biblioteka Arduino, I²C `0x77` (lub `0x76`).
-* GY-63 = MS5611 + LDO + poziomowanie; zasilanie 3,3–5 V, ale linie I²C na 3,3 V.
+* Datasheet TE Connectivity MS5607-02BA03 (10–1200 mbar, kompensacja 2. rzędu, PROM z kalibracją).
+* [`RobTillaart/MS5611`](https://github.com/RobTillaart/MS5611) — biblioteka Arduino, I²C `0x77` (lub `0x76`); obsługuje też MS5607.
+* GY-63 bywa MS5611 albo MS5607 + LDO + poziomowanie; zasilanie 3,3–5 V, ale linie I²C na 3,3 V.
 
 **Aparatura**
 
@@ -270,6 +259,7 @@ i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego ta
 - [x] Research: standard i-Bus, ID sensorów, wybór targetów, źródła
 - [x] Repo + `platformio.ini` na dwa targety
 - [x] Odczyt MS5611 po I²C (ciśnienie + temperatura, sanity check PROM)
+- [x] Obsługa MS5607 (potwierdzony moduł GY-63; domyślny wariant kompilacji)
 - [x] Wysokość względna + prędkość wznoszenia (filtracja, stabilny vspd, opóźnienie ~0,5–1 s)
 - [ ] Re-zero wysokości i kompensacja wolnego dryfu ciśnienia (osobna zmiana/spec)
 - [x] Korekcja temperaturowa wysokości ze zmierzonej temperatury MS5611 (długie loty, osobna zmiana/spec)
@@ -288,6 +278,8 @@ i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego ta
   poprawkę z PR `bmellink/IBusBM#51`; wrócić do wydania upstream, gdy poprawka zostanie wydana.
 * **Brak rezystora/diody na TX** → odbiornik nigdy nie odpyta sensora i w aparaturze nie pojawi się żaden wpis.
   Dla opcji A (domyślnej) użyj ~1,2 kΩ lub diody 1N4148, dla opcji B 100 Ω.
+* **GY-63 bywa MS5611 albo MS5607** → oznaczenie płytki nie gwarantuje układu. Firmware domyślnie
+  używa MS5607; dla MS5611 zbuduj z `-DPRESSURE_SENSOR_MS5607=0`. Zły wariant daje ciśnienie ~2x mniejsze.
 * **`0xF9` nie jest mapowane** przez OpenI6X — wysyłanie go nie da wysokości.
 * Klon RP2040 użyty wcześniej do testów okazał się uszkodzony (zapis flash trafiał wyłącznie do pierwszej
   strony 256 B) — dlatego ten projekt startuje na ESP32-C6, a nie na RP2040.

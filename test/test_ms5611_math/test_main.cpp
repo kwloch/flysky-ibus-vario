@@ -10,6 +10,10 @@ Prom datasheetProm() {
   return Prom{{0x0001, 0x9CBF, 0x903C, 0x5B15, 0x5AF2, 0x82B8, 0x6E98, 0x123B}};
 }
 
+Prom userProm() {
+  return Prom{{0x089C, 0x998C, 0x8E4E, 0x5E3A, 0x585F, 0x881E, 0x6AC1, 0x6663}};
+}
+
 void fixCrc(Prom& prom) {
   prom.words[7] = static_cast<uint16_t>((prom.words[7] & 0xFF00) | crc4(prom));
 }
@@ -87,6 +91,25 @@ void testCompensationMs5607IsDoubleMs5611() {
   }
 }
 
+void testCompensationMs5607UserVector() {
+  const Sample sample = compensateMs5607(userProm(), 6476028, 9086870);
+  TEST_ASSERT_EQUAL_INT32(98206, sample.pressurePa);
+  TEST_ASSERT_EQUAL_INT32(2541, sample.temperatureCentiC);
+  TEST_ASSERT_TRUE(inRange(sample));
+}
+
+void testSelectedCompensationUsesBuildVariant() {
+#if PRESSURE_SENSOR_MS5607
+  const Sample sample = compensateSelected(userProm(), 6476028, 9086870);
+  TEST_ASSERT_EQUAL_INT32(98206, sample.pressurePa);
+  TEST_ASSERT_EQUAL_INT32(2541, sample.temperatureCentiC);
+#else
+  const Sample sample = compensateSelected(datasheetProm(), 9085466, 8569150);
+  TEST_ASSERT_EQUAL_INT32(100009, sample.pressurePa);
+  TEST_ASSERT_EQUAL_INT32(2007, sample.temperatureCentiC);
+#endif
+}
+
 void testRangeAcceptsInclusiveBoundaries() {
   TEST_ASSERT_TRUE(inRange(Sample{10000, -4000}));
   TEST_ASSERT_TRUE(inRange(Sample{120000, 8500}));
@@ -110,6 +133,8 @@ int main(int, char**) {
   RUN_TEST(testCompensationSecondOrderBelowTwentyDegrees);
   RUN_TEST(testCompensationSecondOrderBelowMinusFifteenDegrees);
   RUN_TEST(testCompensationMs5607IsDoubleMs5611);
+  RUN_TEST(testCompensationMs5607UserVector);
+  RUN_TEST(testSelectedCompensationUsesBuildVariant);
   RUN_TEST(testRangeAcceptsInclusiveBoundaries);
   RUN_TEST(testRangeRejectsOutOfBounds);
   return UNITY_END();

@@ -2,6 +2,10 @@
 
 #include <cstdint>
 
+#ifndef PRESSURE_SENSOR_MS5607
+#define PRESSURE_SENSOR_MS5607 1
+#endif
+
 constexpr uint8_t kMs5611PromWords = 8;
 constexpr int32_t kMs5611MinPressurePa = 10000;
 constexpr int32_t kMs5611MaxPressurePa = 120000;
@@ -160,6 +164,13 @@ inline Sample compensateMs5607(const Prom& prom, uint32_t d1, uint32_t d2) {
       (((static_cast<int64_t>(d1) * sensitivity) >> 21) - offset) >> 15;
 
   return Sample{static_cast<int32_t>(pressure), static_cast<int32_t>(temperature)};
+}
+
+constexpr bool kPressureSensorMs5607 = PRESSURE_SENSOR_MS5607 != 0;
+
+inline Sample compensateSelected(const Prom& prom, uint32_t d1, uint32_t d2) {
+  return kPressureSensorMs5607 ? compensateMs5607(prom, d1, d2)
+                               : compensate(prom, d1, d2);
 }
 
 inline bool inRange(const Sample& sample) {

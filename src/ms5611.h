@@ -15,8 +15,6 @@ class MS5611 {
   bool hasSample() const { return hasSample_; }
   const Sample& sample() const { return sample_; }
   const Prom& prom() const { return prom_; }
-  uint32_t rawD1() const { return d1_; }
-  uint32_t rawD2() const { return d2_; }
   Ms5611Error lastError() const { return lastError_; }
 
  private:
@@ -29,8 +27,6 @@ class MS5611 {
   uint8_t address_;
   Prom prom_{};
   Sample sample_{};
-  uint32_t d1_ = 0;
-  uint32_t d2_ = 0;
   bool initialized_ = false;
   bool hasSample_ = false;
   Ms5611Error lastError_ = Ms5611Error::Ok;
