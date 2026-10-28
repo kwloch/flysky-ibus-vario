@@ -203,6 +203,8 @@ i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego ta
 - [x] Repo + `platformio.ini` na dwa targety
 - [x] Odczyt MS5611 po I²C (ciśnienie + temperatura, sanity check PROM)
 - [x] Wysokość względna + prędkość wznoszenia (filtracja, stabilny vspd, opóźnienie ~0,5–1 s)
+- [ ] Re-zero wysokości i kompensacja wolnego dryfu ciśnienia (osobna zmiana/spec)
+- [ ] Korekcja temperaturowa wysokości ze zmierzonej temperatury MS5611 (długie loty, osobna zmiana/spec)
 - [ ] Emulacja sensorów i-Bus: `0x83` i `0x09` na ESP32-C6
 - [ ] Test na FS-iA6B + FS-i6X (OpenI6X 2.3.0) — pojawienie się Alt i Vspd
 - [ ] Target nRF52840 (po identyfikacji modułu i bootloadera)
