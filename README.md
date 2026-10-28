@@ -179,8 +179,9 @@ dotychczasowy wzór standardowy, a przy cieplejszym/zimniejszym starcie skala wy
 rośnie/maleje. Używana jest tylko temperatura odniesienia z okna startowego, nie bieżąca temperatura
 matrycy — dzięki temu self-heating i dryf elektroniki nie tworzą fałszywego wznoszenia. Ograniczenia:
 temperatura matrycy może różnić się od temperatury powietrza, a korekcja dotyczy wysokości względnej
-(brak QNH/GPS). Do porównania z wersją standardową zbuduj firmware z
-`PLATFORMIO_BUILD_FLAGS="-DVARIO_TEMPERATURE_CORRECTION=0" pio run -e esp32-c6-zero`. Wewnętrznie
+(brak QNH/GPS). Korekcja jest domyślnie włączona przez
+`build_flags = -DVARIO_TEMPERATURE_CORRECTION=1` w `platformio.ini`; do porównania z wersją
+standardową zmień tę wartość na `0`. Wewnętrznie
 wysokość i vspd są liczone w cm i cm/s (format gotowy pod przyszłe ramki i-Bus), a w logu pokazywane
 w m i m/s. Prędkość wznoszenia pochodzi z filtra alpha-beta (`alpha=0.1`, `beta=0.02`) na wysokości;
 filtr jest nastawiony na stabilny vspd kosztem czasu odpowiedzi ~0,5–1 s, a po przerwie w pomiarach
