@@ -5,9 +5,9 @@ Telemetria **i-Bus (AFHDS 2A)** dla aparatury FlySky z firmware **OpenI6X** — 
 Cel projektu: mały, lekki moduł, który wysyła do odbiornika FlySky (np. FS-iA6B) wysokość względną
 i prędkość wznoszenia, bez kupowania fabrycznych sensorów.
 
-Status: **w toku** — działa odczyt ciśnienia i temperatury z MS5611 po I²C oraz wysokość względna
-i filtrowana prędkość wznoszenia. Pierwszy target to **ESP32-C6-Zero**, potem mały moduł
-**nRF52840**; kolejny krok to emulacja i-Bus.
+Status: **w toku** — działa odczyt ciśnienia i temperatury z MS5611 po I²C, wysokość względna
+i filtrowana prędkość wznoszenia oraz emulacja i-Bus (Alt `0x83`, Vspd `0x09`). Pierwszy target
+to **ESP32-C6-Zero**, potem mały moduł **nRF52840**; pozostał test na aparaturze.
 
 ---
 
@@ -63,9 +63,10 @@ czy MCU trzyma TX w stanie wyjściowym cały czas:
   …, half_duplex = true)`: przy każdym bajcie pin wchodzi na `GPIO_FUNC_UART`, po `uart_tx_wait_blocking`
   wraca na `GPIO_FUNC_NULL`, a RX jest wyłączany na czas nadawania.
 
-**Wybór dla tego projektu:** opcja **B** — na ESP32-C6 przełączamy pin TX między `OUTPUT` (nadawanie)
-i `INPUT` (spoczynek) programowo, więc nie trzeba diody; 100 Ω w szereg zostawiamy profilaktycznie.
-Opcja A zostaje jako fallback, gdyby odbiornik gubił ramki.
+**Wybór w tym projekcie:** domyślnie opcja **A** (`IBusBM`) — biblioteka obsługuje polling w przerwaniu
+timera 1 ms, więc blokujący odczyt MS5611 nie gubi ramek. Dostępna jest też opcja **B**
+(`-DIBUS_TRANSPORT_HALFDUPLEX=1`) z własnym półdupleksem: GPIO5 jest przełączany między `OUTPUT`
+i `INPUT`, więc wystarcza 100 Ω w szeregu. Obie wersje wysyłają te same sensory.
 
 * Zasilanie: 3,3 V dla MS5611 (GY-63 ma własny LDO, ale linie I²C są 3,3 V).
 * Po podłączeniu: w aparaturze **Delete all sensors → Discover new sensors** (stare wpisy zostają puste).
@@ -88,10 +89,13 @@ Piny do potwierdzenia w tym projekcie (na płytce C6-Zero):
 |-----|---------|
 | GPIO0 | SDA (I²C do GY-63) — potwierdzone w poprzednim projekcie na tej płytce |
 | GPIO1 | SCL (I²C) |
+| GPIO4 | i-Bus RX (UART1) |
+| GPIO5 | i-Bus TX (UART1) |
 | GPIO8 | wbudowana dioda WS2812 (status) |
 | GPIO9 | BOOT / reset fabryczny |
 
-UART do i-Bus: dowolne wolne GPIO (half-duplex realizujemy softwarowo / przez UART z rezystorem).
+UART i-Bus: `115200 8N1`, GPIO4 = RX, GPIO5 = TX. Wariant A (domyślny) wymaga ~1,2 kΩ w szereg
+albo diody 1N4148 (katoda przy MCU). Wariant B wymaga 100 Ω od GPIO5; GPIO4 łączy się bezpośrednio.
 
 ### B. nRF52840 (mały moduł — po identyfikacji)
 
@@ -116,14 +120,19 @@ Uwagi:
 platformio.ini          # [env:esp32-c6-zero], [env:nrf52840], [env:native]
 boards/                 # tylko jeśli trzeba własny board def (np. moduł nRF52840)
 src/
-  main.cpp              # 20 Hz próbkowanie, log vario 5 Hz i ciśnienia 1 Hz
+  main.cpp              # 20 Hz próbkowanie, log vario 5 Hz i ciśnienia 1 Hz, integracja i-Bus
   ms5611.h / ms5611.cpp # sterownik MS5611: PROM/CRC4, konwersje, kompensacja, błędy
+  ibus_transport.cpp    # adaptery IBusBM i półdupleksowy oraz fabryka transportu
 include/
   ms5611_math.h         # czysta matematyka: CRC4, kompensacja, kontrola zakresu
   vario_math.h          # wysokość z ciśnienia, referencja startowa, filtr alpha-beta vspd
+  ibus_protocol.h       # czysty kodek i-Bus: checksumy, ramki, nasycenie Vspd
+  ibus_emulator.h       # rejestracja Alt/Vspd i aktualizacja wartości
+  ibus_transport.h      # interfejs IbusTransport, IbusCounters i fabryka
 test/
   test_ms5611_math/     # testy hostowe Unity (CRC4, wektory datasheetu, zakres)
   test_vario_math/      # testy wysokości, filtra, opóźnienia i obsługi przerw
+  test_ibus_emulation/  # testy ramek, checksum, rejestru i aktualizacji sensorów
 lib/
 docs/                   # notatki, zrzuty ramek, pomiary
 ```
@@ -138,6 +147,13 @@ Pełny build firmware:
 
 ```bash
 pio run -e esp32-c6-zero
+```
+
+Bez flagi aktywny jest transport `IBusBM` (opcja A). Wariant półdupleksowy (opcja B) wybiera się
+makrem kompilacji:
+
+```bash
+PLATFORMIO_BUILD_FLAGS="-DIBUS_TRANSPORT_HALFDUPLEX=1" pio run -e esp32-c6-zero
 ```
 
 Bez `-e` PlatformIO nadal buduje domyślny target `esp32-c6-zero`. Wgranie i podgląd logów po USB:
@@ -160,6 +176,13 @@ powyżej miejsca startu i ujemna poniżej. Wewnętrznie wysokość i vspd są li
 pochodzi z filtra alpha-beta (`alpha=0.1`, `beta=0.02`) na wysokości; filtr jest nastawiony na
 stabilny vspd kosztem czasu odpowiedzi ~0,5–1 s, a po przerwie w pomiarach dłuższej niż 250 ms
 wznawia pracę bez fałszywego skoku. Nieudane lub poza-zakresowe odczyty nie aktualizują estymatora.
+
+Przy starcie firmware rejestruje dwa sensory i-Bus: Alt `0x83` (4 B, cm, `int32_t`) i Vspd `0x09`
+(2 B, cm/s, `int16_t`, nasycany do zakresu). Do uzyskania referencji wysyłane są zera, a potem
+wartości aktualizowane są razem z publikacją vario co ~200 ms. Log startowy
+`IBUS: transport=<IBusBM|halfduplex> rx=4 tx=5 alt=0x83 vspd=0x09` oraz co ~1 s
+`IBUS: t=<ms> poll=<n> resp=<n>` pozwalają sprawdzić, czy odbiornik odpytuje sensory. W aparaturze
+wykonaj `Delete all sensors` → `Discover new sensors`; powinny pojawić się Alt i Vspd.
 
 Testy hostowe (bez podłączonego ESP32-C6 ani GY-63) uruchamia się w środowisku `native`:
 
@@ -205,7 +228,7 @@ i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego ta
 - [x] Wysokość względna + prędkość wznoszenia (filtracja, stabilny vspd, opóźnienie ~0,5–1 s)
 - [ ] Re-zero wysokości i kompensacja wolnego dryfu ciśnienia (osobna zmiana/spec)
 - [ ] Korekcja temperaturowa wysokości ze zmierzonej temperatury MS5611 (długie loty, osobna zmiana/spec)
-- [ ] Emulacja sensorów i-Bus: `0x83` i `0x09` na ESP32-C6
+- [x] Emulacja sensorów i-Bus: `0x83` i `0x09` na ESP32-C6 (domyślnie `IBusBM`, opcjonalnie półdupleks)
 - [ ] Test na FS-iA6B + FS-i6X (OpenI6X 2.3.0) — pojawienie się Alt i Vspd
 - [ ] Target nRF52840 (po identyfikacji modułu i bootloadera)
 - [ ] Obudowa 3D + waga < 5 g
@@ -217,6 +240,7 @@ i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego ta
 * **IBusBM 1.1.4 nie kompiluje się z Arduino core 3.x** (zmiana API timerów). `platformio.ini` pinuje
   poprawkę z PR `bmellink/IBusBM#51`; wrócić do wydania upstream, gdy poprawka zostanie wydana.
 * **Brak rezystora/diody na TX** → odbiornik nigdy nie odpyta sensora i w aparaturze nie pojawi się żaden wpis.
+  Dla opcji A (domyślnej) użyj ~1,2 kΩ lub diody 1N4148, dla opcji B 100 Ω.
 * **`0xF9` nie jest mapowane** przez OpenI6X — wysyłanie go nie da wysokości.
 * Klon RP2040 użyty wcześniej do testów okazał się uszkodzony (zapis flash trafiał wyłącznie do pierwszej
   strony 256 B) — dlatego ten projekt startuje na ESP32-C6, a nie na RP2040.

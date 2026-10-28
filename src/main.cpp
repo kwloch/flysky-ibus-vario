@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#include "ibus_emulator.h"
+#include "ibus_transport.h"
 #include "ms5611.h"
 #include "vario_math.h"
 
@@ -13,15 +15,19 @@ constexpr uint8_t kAddress = 0x77;
 constexpr uint32_t kSampleIntervalMs = kVarioSampleIntervalMs;
 constexpr uint32_t kVarioLogIntervalMs = kVarioPublishIntervalMs;
 constexpr uint32_t kPressureLogIntervalMs = 1000;
+constexpr uint32_t kIbusLogIntervalMs = 1000;
 constexpr uint32_t kRetryIntervalMs = 1000;
 
 MS5611 sensor(Wire, kAddress);
 VarioEstimator vario;
+IbusTransport& ibusTransport = createIbusTransport();
+IbusSensorEmulator ibusEmulator(ibusTransport);
 bool initialized = false;
 uint32_t nextInitAttemptMs = 0;
 uint32_t nextSampleMs = 0;
 uint32_t nextVarioLogMs = 0;
 uint32_t nextPressureLogMs = 0;
+uint32_t nextIbusLogMs = 0;
 uint32_t lastSampleMs = 0;
 
 bool timeReached(uint32_t now, uint32_t deadline) {
@@ -31,6 +37,19 @@ bool timeReached(uint32_t now, uint32_t deadline) {
 void logBoot() {
   Serial.printf("MS5611: boot addr=0x%02X SDA=%u SCL=%u %lukHz\n", kAddress, kSdaPin,
                 kSclPin, static_cast<unsigned long>(kI2cHz / 1000));
+}
+
+void logIbusBoot() {
+  Serial.printf("IBUS: transport=%s rx=%u tx=%u alt=0x%02X vspd=0x%02X\n",
+                ibusTransportName(), kIbusRxPin, kIbusTxPin, ibus::kAltType,
+                ibus::kVspdType);
+}
+
+void logIbusCounters(uint32_t nowMs) {
+  const IbusCounters counters = ibusTransport.counters();
+  Serial.printf("IBUS: t=%lu poll=%lu resp=%lu\n", static_cast<unsigned long>(nowMs),
+                static_cast<unsigned long>(counters.polls),
+                static_cast<unsigned long>(counters.responses));
 }
 
 void logInitOk() {
@@ -51,6 +70,7 @@ void logSample(uint32_t nowMs) {
 
 void logVario(uint32_t nowMs) {
   const VarioReading reading = vario.reading();
+  ibusEmulator.update(reading);
   if (!reading.valid) {
     return;
   }
@@ -93,6 +113,10 @@ void scheduleAfterInit(uint32_t now) {
 
 void setup() {
   Serial.begin(115200);
+  ibusTransport.begin();
+  ibusEmulator.begin();
+  logIbusBoot();
+
   Wire.begin(kSdaPin, kSclPin);
   Wire.setClock(kI2cHz);
   delay(100);
@@ -105,10 +129,17 @@ void setup() {
     scheduleAfterInit(now);
   }
   nextInitAttemptMs = now + kRetryIntervalMs;
+  nextIbusLogMs = now + kIbusLogIntervalMs;
 }
 
 void loop() {
+  ibusTransport.poll();
   const uint32_t now = millis();
+
+  if (timeReached(now, nextIbusLogMs)) {
+    logIbusCounters(now);
+    nextIbusLogMs = now + kIbusLogIntervalMs;
+  }
 
   if (!initialized) {
     if (timeReached(now, nextInitAttemptMs)) {
