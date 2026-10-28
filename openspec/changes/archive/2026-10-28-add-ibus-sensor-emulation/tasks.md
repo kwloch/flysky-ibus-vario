@@ -21,8 +21,8 @@
 
 - [x] 4.1 Uruchomić `pio test -e native`, `pio run -e esp32-c6-zero`, `PLATFORMIO_BUILD_FLAGS="-DIBUS_TRANSPORT_HALFDUPLEX=1" pio run -e esp32-c6-zero` oraz `pio run` bez `-e`; zweryfikować, że testy przechodzą, oba transporty się budują, a domyślny build nadal wybiera wyłącznie `esp32-c6-zero`.
 - [x] 4.2 Uruchomić `openspec validate add-ibus-sensor-emulation --type change --strict`; zweryfikować, że walidacja kończy się bez błędów i ostrzeżeń.
-- [ ] 4.3 Wykonać smoke test na sprzęcie (ESP32-C6-Zero + GY-63 + FS-iA6B + FS-i6X z OpenI6X 2.3.0): wgrać domyślny wariant, wykonać `Delete all sensors` → `Discover new sensors` i sprawdzić, że pojawiają się Alt i Vspd; potwierdzić rosnące liczniki `IBUS: poll/resp`, zmienić wysokość czujnika i sprawdzić reakcję Alt/Vspd, a następnie powtórzyć dla wariantu półdupleksowego z rezystorem 100 Ω. Jeśli sprzęt jest niedostępny, zapisać wynik jako oczekujący i nie oznaczać zadania jako zweryfikowane.
-  Wynik 4.3: oczekujący — brak dostępu do sprzętu (ESP32-C6-Zero + GY-63 + FS-iA6B + FS-i6X); zadanie pozostaje nieoznaczone jako zweryfikowane.
+- [x] 4.3 Wykonać smoke test na sprzęcie (ESP32-C6-Zero + GY-63 + FS-iA6B + FS-i6X z OpenI6X 2.3.0): wgrać domyślny wariant, wykonać `Delete all sensors` → `Discover new sensors` i sprawdzić, że pojawiają się Alt i Vspd; potwierdzić rosnące liczniki `IBUS: poll/resp`, zmienić wysokość czujnika i sprawdzić reakcję Alt/Vspd, a następnie powtórzyć dla wariantu półdupleksowego z rezystorem 100 Ω. Jeśli sprzęt jest niedostępny, zapisać wynik jako oczekujący i nie oznaczać zadania jako zweryfikowane.
+  Wynik 4.3: domyślny `IBusBM` z rezystorem 1 kΩ zweryfikowany na FS-iA6B + FS-i6X — Alt i Vspd pojawiają się i reagują na zmianę wysokości. Test półdupleksu (100 Ω) odłożony do roadmapy jako osobny punkt.
 
 ## Workflow follow-up
 

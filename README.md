@@ -6,8 +6,9 @@ Cel projektu: mały, lekki moduł, który wysyła do odbiornika FlySky (np. FS-i
 i prędkość wznoszenia, bez kupowania fabrycznych sensorów.
 
 Status: **w toku** — działa odczyt ciśnienia i temperatury z MS5611 po I²C, wysokość względna
-i filtrowana prędkość wznoszenia oraz emulacja i-Bus (Alt `0x83`, Vspd `0x09`). Pierwszy target
-to **ESP32-C6-Zero**, potem mały moduł **nRF52840**; pozostał test na aparaturze.
+i filtrowana prędkość wznoszenia oraz emulacja i-Bus (Alt `0x83`, Vspd `0x09`). Domyślny wariant
+`IBusBM` jest potwierdzony na aparaturze; test wariantu półdupleksowego pozostaje do wykonania.
+Pierwszy target to **ESP32-C6-Zero**, potem mały moduł **nRF52840**.
 
 ---
 
@@ -69,7 +70,8 @@ timera 1 ms, więc blokujący odczyt MS5611 nie gubi ramek. Dostępna jest też 
 i `INPUT`, więc wystarcza 100 Ω w szeregu. Obie wersje wysyłają te same sensory.
 
 * Zasilanie: 3,3 V dla MS5611 (GY-63 ma własny LDO, ale linie I²C są 3,3 V).
-* Po podłączeniu: w aparaturze **Delete all sensors → Discover new sensors** (stare wpisy zostają puste).
+* Po podłączeniu: w aparaturze **Delete all sensors** (przytrzymaj dłużej, aż pojawi się okno
+  potwierdzenia) → **Discover new sensors** (stare wpisy zostają puste).
 
 ## 3. Targety
 
@@ -182,7 +184,8 @@ Przy starcie firmware rejestruje dwa sensory i-Bus: Alt `0x83` (4 B, cm, `int32_
 wartości aktualizowane są razem z publikacją vario co ~200 ms. Log startowy
 `IBUS: transport=<IBusBM|halfduplex> rx=4 tx=5 alt=0x83 vspd=0x09` oraz co ~1 s
 `IBUS: t=<ms> poll=<n> resp=<n>` pozwalają sprawdzić, czy odbiornik odpytuje sensory. W aparaturze
-wykonaj `Delete all sensors` → `Discover new sensors`; powinny pojawić się Alt i Vspd.
+wykonaj `Delete all sensors` (przytrzymaj dłużej, aż pojawi się okno potwierdzenia) →
+`Discover new sensors`; powinny pojawić się Alt i Vspd.
 
 Testy hostowe (bez podłączonego ESP32-C6 ani GY-63) uruchamia się w środowisku `native`:
 
@@ -218,7 +221,8 @@ i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego ta
 **Aparatura**
 
 * FS-i6X z OpenI6X 2.3.0 (menu EN). Odbiornik FS-iA6B — pin `sensor`/i-Bus do telemetrii.
-* Po zmianach: `Delete all sensors` → `Discover new sensors`.
+* Po zmianach: `Delete all sensors` (przytrzymaj dłużej, aż pojawi się okno potwierdzenia) →
+  `Discover new sensors`.
 
 ## 6. Roadmap
 
@@ -229,7 +233,9 @@ i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego ta
 - [ ] Re-zero wysokości i kompensacja wolnego dryfu ciśnienia (osobna zmiana/spec)
 - [ ] Korekcja temperaturowa wysokości ze zmierzonej temperatury MS5611 (długie loty, osobna zmiana/spec)
 - [x] Emulacja sensorów i-Bus: `0x83` i `0x09` na ESP32-C6 (domyślnie `IBusBM`, opcjonalnie półdupleks)
-- [ ] Test na FS-iA6B + FS-i6X (OpenI6X 2.3.0) — pojawienie się Alt i Vspd
+- [x] Test domyślnego `IBusBM` na FS-iA6B + FS-i6X (OpenI6X 2.3.0) — Alt i Vspd reagują
+- [ ] Test wariantu półdupleksowego (100 Ω) na FS-iA6B + FS-i6X — osobny punkt, odłożony
+- [ ] Monitor napięcia baterii (pomiar napięcia zasilania/ogniwa, alarm niskiego napięcia; osobna zmiana/spec)
 - [ ] Target nRF52840 (po identyfikacji modułu i bootloadera)
 - [ ] Obudowa 3D + waga < 5 g
 
