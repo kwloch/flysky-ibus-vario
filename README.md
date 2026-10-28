@@ -153,12 +153,13 @@ Firmware próbkuje ciśnienie co 50 ms (20 Hz) i co około 200 ms (5 Hz) loguje 
 i pojedynczego odczytu (`read FAILED ...; continuing`) są raportowane osobno, a program ponawia
 próby zamiast się zawieszać.
 
-Pierwszy prawidłowy pomiar po inicjalizacji wyznacza ciśnienie odniesienia — wtedy `alt` wynosi 0.
-Wysokość jest dodatnia powyżej miejsca startu i ujemna poniżej. Wewnętrznie wysokość i vspd są
-liczone w cm i cm/s (format gotowy pod przyszłe ramki i-Bus), a w logu pokazywane w m i m/s.
-Prędkość wznoszenia pochodzi z filtra alpha-beta (`alpha=0.4`, `beta=0.2`) na wysokości; filtr
-spełnia założone opóźnienie ~200 ms, a po przerwie w pomiarach dłuższej niż 250 ms wznawia pracę
-bez fałszywego skoku. Nieudane lub poza-zakresowe odczyty nie aktualizują estymatora.
+Ciśnienie odniesienia to średnia z pierwszych 20 prawidłowych pomiarów po inicjalizacji (około 1 s
+przy 20 Hz); dopiero wtedy `alt` wynosi 0 i pojawiają się linie `VARIO:`. Wysokość jest dodatnia
+powyżej miejsca startu i ujemna poniżej. Wewnętrznie wysokość i vspd są liczone w cm i cm/s
+(format gotowy pod przyszłe ramki i-Bus), a w logu pokazywane w m i m/s. Prędkość wznoszenia
+pochodzi z filtra alpha-beta (`alpha=0.1`, `beta=0.02`) na wysokości; filtr jest nastawiony na
+stabilny vspd kosztem czasu odpowiedzi ~0,5–1 s, a po przerwie w pomiarach dłuższej niż 250 ms
+wznawia pracę bez fałszywego skoku. Nieudane lub poza-zakresowe odczyty nie aktualizują estymatora.
 
 Testy hostowe (bez podłączonego ESP32-C6 ani GY-63) uruchamia się w środowisku `native`:
 
@@ -201,7 +202,7 @@ i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego ta
 - [x] Research: standard i-Bus, ID sensorów, wybór targetów, źródła
 - [x] Repo + `platformio.ini` na dwa targety
 - [x] Odczyt MS5611 po I²C (ciśnienie + temperatura, sanity check PROM)
-- [x] Wysokość względna + prędkość wznoszenia (filtracja, opóźnienie < ~200 ms)
+- [x] Wysokość względna + prędkość wznoszenia (filtracja, stabilny vspd, opóźnienie ~0,5–1 s)
 - [ ] Emulacja sensorów i-Bus: `0x83` i `0x09` na ESP32-C6
 - [ ] Test na FS-iA6B + FS-i6X (OpenI6X 2.3.0) — pojawienie się Alt i Vspd
 - [ ] Target nRF52840 (po identyfikacji modułu i bootloadera)

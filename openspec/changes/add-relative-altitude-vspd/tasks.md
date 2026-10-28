@@ -16,8 +16,15 @@
 
 - [x] 3.1 Uruchomić `pio test -e native` oraz `pio run -e esp32-c6-zero`; zweryfikować, że testy przechodzą, firmware się buduje, a `pio run` bez `-e` nadal buduje wyłącznie `esp32-c6-zero`.
 - [x] 3.2 Uruchomić `openspec validate add-relative-altitude-vspd --type change --strict`; zweryfikować, że walidacja kończy się bez błędów i ostrzeżeń.
-- [ ] 3.3 Wykonać smoke test na sprzęcie (ESP32-C6-Zero + GY-63 na GPIO0/GPIO1): wgrać firmware, otworzyć `pio device monitor -e esp32-c6-zero` i sprawdzić, że linie `VARIO:` pojawiają się co ~200 ms, linie `MS5611:` co ~1 s, a w spoczynku wysokość i vspd oscylują blisko zera; następnie zmienić wysokość czujnika (np. winda/schody) i sprawdzić, że vspd reaguje w ciągu ~200 ms, a po odłączeniu i ponownym podłączeniu czujnika nie pojawia się fałszywy trwały skok. Jeśli sprzęt jest niedostępny, zapisać wynik jako oczekujący i nie oznaczać zadania jako zweryfikowane.
-  - Wynik: OCZEKUJE — w środowisku nie ma podłączonego ESP32-C6-Zero ani GY-63.
+- [ ] 3.3 Wykonać smoke test na sprzęcie (ESP32-C6-Zero + GY-63 na GPIO0/GPIO1): wgrać firmware, otworzyć `pio device monitor -e esp32-c6-zero` i sprawdzić, że linie `VARIO:` pojawiają się co ~200 ms, linie `MS5611:` co ~1 s, a w spoczynku wysokość i vspd oscylują blisko zera; następnie zmienić wysokość czujnika (np. winda/schody) i sprawdzić, że vspd reaguje w ciągu ~0,5–1 s, a po odłączeniu i ponownym podłączeniu czujnika nie pojawia się fałszywy trwały skok. Jeśli sprzęt jest niedostępny, zapisać wynik jako oczekujący i nie oznaczać zadania jako zweryfikowane.
+  - Wynik: NIEZALICZONY (wersja 0.4/0.2) — na nieruchomym czujniku alt ~-0.55 m, vspd ±2 m/s. Wymaga ponownego testu po zadaniach 4.1–4.4.
+
+## 4. Retune po teście sprzętowym
+
+- [x] 4.1 Zmienić `include/vario_math.h`: referencja jako średnia z 20 prawidłowych próbek (`kVarioReferenceSamples`) zamiast pierwszego pomiaru oraz gains `alpha=0.1`, `beta=0.02`; zweryfikować, że brak jest odczytu przed wypełnieniem okna, a nagłówek kompiluje się w testach 4.2.
+- [x] 4.2 Zaktualizować `test/test_vario_math/test_main.cpp`: uśredniona referencja (brak `valid` przed 20 próbkami), rampa 2 m/s (≥1,8 m/s po 700 ms i błąd wysokości ≤0,2 m po 1 s), naprzemienny szum 0,1 m (vspd w ±0,3 m/s), pojedyncze zakłócenie, przerwa >250 ms i zaokrąglanie; zweryfikować przez `pio test -e native`, że wszystkie testy przechodzą.
+- [x] 4.3 Zaktualizować `README.md`: opisać referencję uśrednianą z ~1 s, gains `alpha=0.1`, `beta=0.02` i czas odpowiedzi ~0,5–1 s zamiast 200 ms; zweryfikować, że README nie zawiera już starych wartości.
+- [x] 4.4 Uruchomić `pio run -e esp32-c6-zero`, `pio run` bez `-e` oraz `openspec validate add-relative-altitude-vspd --type change --strict`; zweryfikować, że build i walidacja przechodzą.
 
 ## Workflow follow-up
 

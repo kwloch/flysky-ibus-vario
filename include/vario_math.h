@@ -7,8 +7,9 @@ constexpr uint32_t kVarioSampleIntervalMs = 50;
 constexpr uint32_t kVarioPublishIntervalMs = 200;
 constexpr uint32_t kVarioMaxGapMs = 250;
 constexpr uint32_t kVarioMinDtMs = 25;
-constexpr float kVarioAlpha = 0.4f;
-constexpr float kVarioBeta = 0.2f;
+constexpr uint32_t kVarioReferenceSamples = 20;
+constexpr float kVarioAlpha = 0.1f;
+constexpr float kVarioBeta = 0.02f;
 constexpr float kVarioBarometricScaleM = 44330.0f;
 constexpr float kVarioBarometricExponent = 1.0f / 5.255f;
 
@@ -30,6 +31,8 @@ class VarioEstimator {
  public:
   void reset() {
     referencePa_ = 0.0f;
+    referenceSumPa_ = 0;
+    referenceSamples_ = 0;
     altitudeM_ = 0.0f;
     climbRateMps_ = 0.0f;
     valid_ = false;
@@ -45,10 +48,21 @@ class VarioEstimator {
     }
 
     if (!valid_) {
-      referencePa_ = static_cast<float>(pressurePa);
-      altitudeM_ = 0.0f;
-      climbRateMps_ = 0.0f;
-      valid_ = true;
+      if (referenceSamples_ > 0 && dtMs > kVarioMaxGapMs) {
+        referenceSumPa_ = pressurePa;
+        referenceSamples_ = 1;
+        return;
+      }
+
+      referenceSumPa_ += pressurePa;
+      ++referenceSamples_;
+      if (referenceSamples_ >= kVarioReferenceSamples) {
+        referencePa_ = static_cast<float>(referenceSumPa_) /
+                       static_cast<float>(referenceSamples_);
+        altitudeM_ = 0.0f;
+        climbRateMps_ = 0.0f;
+        valid_ = true;
+      }
       return;
     }
 
@@ -87,6 +101,8 @@ class VarioEstimator {
 
  private:
   float referencePa_ = 0.0f;
+  int64_t referenceSumPa_ = 0;
+  uint32_t referenceSamples_ = 0;
   float altitudeM_ = 0.0f;
   float climbRateMps_ = 0.0f;
   bool valid_ = false;

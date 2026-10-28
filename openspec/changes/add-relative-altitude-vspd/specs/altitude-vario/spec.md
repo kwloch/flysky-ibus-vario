@@ -8,12 +8,12 @@ Definiuje wysokość względną i filtrowaną prędkość wznoszenia wyliczane z
 
 ### Requirement: Wysokość względna i punkt odniesienia
 
-System SHALL wyznaczyć ciśnienie odniesienia z pierwszego prawidłowego pomiaru po udanej inicjalizacji MS5611 i raportować wysokość względem niego w centymetrach ze znakiem. W chwili wyznaczenia referencji wysokość MUST wynosić 0, a referencja MUST pozostawać stała do restartu urządzenia.
+System SHALL wyznaczyć ciśnienie odniesienia jako średnią z pierwszego okna 20 prawidłowych pomiarów po udanej inicjalizacji MS5611 (około 1 s przy 20 Hz) i raportować wysokość względem niego w centymetrach ze znakiem. W chwili wyznaczenia referencji wysokość MUST wynosić 0, a referencja MUST pozostawać stała do restartu urządzenia.
 
-#### Scenario: Zerowanie przy starcie
+#### Scenario: Zerowanie po oknie referencyjnym
 
-- **WHEN** po udanej inicjalizacji MS5611 pojawi się pierwszy prawidłowy pomiar ciśnienia
-- **THEN** ten pomiar staje się referencją, a raportowana wysokość i prędkość wznoszenia wynoszą 0
+- **WHEN** po udanej inicjalizacji MS5611 upłynie okno 20 prawidłowych pomiarów (około 1 s)
+- **THEN** średnia z tych pomiarów staje się referencją, a raportowana wysokość i prędkość wznoszenia wynoszą 0
 
 #### Scenario: Wysokość powyżej i poniżej referencji
 
@@ -22,8 +22,8 @@ System SHALL wyznaczyć ciśnienie odniesienia z pierwszego prawidłowego pomiar
 
 #### Scenario: Brak referencji przed pierwszym pomiarem
 
-- **WHEN** inicjalizacja MS5611 nie powiodła się albo nie było jeszcze prawidłowego pomiaru
-- **THEN** system nie raportuje wysokości, a pomiary nieudane lub poza zakresem nie ustanawiają referencji
+- **WHEN** inicjalizacja MS5611 nie powiodła się albo okno referencyjne nie zostało jeszcze wypełnione
+- **THEN** system nie raportuje wysokości, a pomiary nieudane lub poza zakresem nie wchodzą do średniej referencyjnej
 
 ### Requirement: Przeliczanie ciśnienia na wysokość
 
@@ -41,17 +41,22 @@ System SHALL przeliczać ciśnienie na wysokość według wzoru `h = 44330 * (1 
 
 ### Requirement: Filtrowana prędkość wznoszenia i opóźnienie
 
-System SHALL raportować prędkość wznoszenia jako przefiltrowaną prędkość zmiany wysokości względnej w centymetrach na sekundę ze znakiem, dodatnią przy wznoszeniu. Dla skoku prędkości z 0 do 2 m/s raportowana wartość MUST osiągnąć co najmniej 1,8 m/s w ciągu 200 ms, a błąd wysokości MUST wynosić nie więcej niż 0,2 m.
+System SHALL raportować prędkość wznoszenia jako przefiltrowaną prędkość zmiany wysokości względnej w centymetrach na sekundę ze znakiem, dodatnią przy wznoszeniu. Dla skoku prędkości z 0 do 2 m/s raportowana wartość MUST osiągnąć co najmniej 1,8 m/s w ciągu 700 ms, a po 1 s błąd wysokości MUST wynosić nie więcej niż 0,2 m.
 
 #### Scenario: Odpowiedź na rozpoczęcie wznoszenia
 
 - **WHEN** wysokość zaczyna rosnąć ze stałą prędkością 2 m/s od stanu zerowego
-- **THEN** po 200 ms raportowana prędkość wznoszenia wynosi co najmniej 1,8 m/s, a raportowana wysokość różni się od rzeczywistej o nie więcej niż 0,2 m
+- **THEN** po 700 ms raportowana prędkość wznoszenia wynosi co najmniej 1,8 m/s, a po 1 s raportowana wysokość różni się od rzeczywistej o nie więcej niż 0,2 m
 
 #### Scenario: Tłumienie pojedynczego zakłócenia
 
 - **WHEN** pojedynczy prawidłowy pomiar odpowiada skokowi wysokości o 0,1 m, a kolejne wracają do poprzedniej wartości
 - **THEN** raportowana wysokość zmienia się o mniej niż 0,05 m, a raportowana prędkość wznoszenia pozostaje w granicach ±0,5 m/s
+
+#### Scenario: Tłumienie szumu barometru
+
+- **WHEN** pomiary oscylują wokół stałej wysokości z amplitudą 0,1 m (np. naprzemiennie co próbkę)
+- **THEN** raportowana prędkość wznoszenia pozostaje w granicach ±0,3 m/s
 
 #### Scenario: Stała wysokość
 
@@ -60,7 +65,7 @@ System SHALL raportować prędkość wznoszenia jako przefiltrowaną prędkość
 
 ### Requirement: Częstotliwość próbkowania i publikacji
 
-System SHALL próbkować ciśnienie co 50 ms (20 Hz) i publikować wysokość oraz prędkość wznoszenia co 200 ms (5 Hz). Publikacja MUST opierać się na najnowszym prawidłowym pomiarze i MUST spełniać budżet opóźnienia 200 ms.
+System SHALL próbkować ciśnienie co 50 ms (20 Hz) i publikować wysokość oraz prędkość wznoszenia co 200 ms (5 Hz). Publikacja MUST opierać się na najnowszym prawidłowym pomiarze i MUST odbywać się z częstotliwością 5 Hz niezależnie od czasu odpowiedzi filtra.
 
 #### Scenario: Próbkowanie 20 Hz
 
