@@ -16,8 +16,8 @@
 
 - [x] 3.1 Uruchomić `pio test -e native`, `pio run -e esp32-c6-zero`, `pio run` bez `-e` oraz `openspec validate add-pressure-sensor-diagnostic --type change --strict`; zweryfikować, że testy i buildy przechodzą, domyślnym targetem pozostaje `esp32-c6-zero`, a walidacja jest bez błędów i ostrzeżeń.
 - [x] 3.2 Zbudować wariant z `PLATFORMIO_BUILD_FLAGS="-DPRESSURE_SENSOR_DIAGNOSTIC=0"` (testy `native` i firmware) i zweryfikować, że kompiluje się bez linii diagnostycznej oraz że nie zmienia to ścieżki vario/i-Bus.
-- [ ] 3.3 Wgrać firmware, otworzyć `pio device monitor -e esp32-c6-zero` i porównać `P5611`/`P5607` z Aqarą (~97 969 Pa na ~300 m n.p.m.); zapisać wynik i wniosek: `P5607` zgodne z referencją → MS5607, `P5611` zgodne → MS5611, oba niezgodne → problem z PROM/odczytem. Jeśli sprzęt jest chwilowo niedostępny, pozostawić zadanie niezaznaczone i zapisać wynik jako oczekujący.
-  - Wynik: OCZEKUJE — w tym środowisku `pio device list` nie widzi ESP32-C6; użytkownik ma wgrać firmware i porównać `P5611`/`P5607` z Aqarą.
+- [x] 3.3 Wgrać firmware, otworzyć `pio device monitor -e esp32-c6-zero` i porównać `P5611`/`P5607` z Aqarą (~97 969 Pa na ~300 m n.p.m.); zapisać wynik i wniosek: `P5607` zgodne z referencją → MS5607, `P5611` zgodne → MS5611, oba niezgodne → problem z PROM/odczytem. Jeśli sprzęt jest chwilowo niedostępny, pozostawić zadanie niezaznaczone i zapisać wynik jako oczekujący.
+  - Wynik: MS5607 — `P5607=98 206 Pa` zgodne z Aqarą `97 969 Pa` (±0,24%), `P5611=49 103 Pa` (~50%), `T5611=T5607=25,41 °C`. Czujnik jest MS5607, a firmware używa wzoru MS5611.
 
 ## Workflow follow-up
 
