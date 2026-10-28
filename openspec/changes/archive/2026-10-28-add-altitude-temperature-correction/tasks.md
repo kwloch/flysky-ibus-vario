@@ -18,8 +18,8 @@
 - [x] 3.1 Uruchomić `pio test -e native`, `pio run -e esp32-c6-zero` i `pio run` bez `-e`; zweryfikować, że testy przechodzą, build się udaje, a domyślnym targetem pozostaje `esp32-c6-zero`.
 - [x] 3.2 Uruchomić `PLATFORMIO_BUILD_FLAGS="-DVARIO_TEMPERATURE_CORRECTION=0" pio test -e native` oraz analogiczny build firmware; zweryfikować, że wariant bez korekcji kompiluje się i testy warunkowe przechodzą. Jeśli zmienna nie propaguje się do testów, użyć chwilowej `build_flags` w `[env:native]` i usunąć ją po weryfikacji.
 - [x] 3.3 Uruchomić `openspec validate add-altitude-temperature-correction --type change --strict`; zweryfikować, że walidacja kończy się bez błędów i ostrzeżeń.
-- [ ] 3.4 Wykonać smoke test na sprzęcie (ESP32-C6-Zero + GY-63): wgrać firmware, otworzyć `pio device monitor -e esp32-c6-zero` i sprawdzić, że przy stałym ciśnieniu zmiana temperatury czujnika (np. ogrzanie palcem) nie zmienia `alt` ani `vspd`; porównać wysokość z włączoną i wyłączoną korekcją przy tej samej temperaturze startu i zapisać wynik. Jeśli sprzęt jest niedostępny, zapisać wynik jako oczekujący i nie oznaczać zadania jako zweryfikowane.
-  - Wynik: OCZEKUJE — `pio device list` nie widzi podłączonego ESP32-C6; smoke test do wykonania na sprzęcie.
+- [x] 3.4 Wykonać smoke test na sprzęcie (ESP32-C6-Zero + GY-63): wgrać firmware, otworzyć `pio device monitor -e esp32-c6-zero` i sprawdzić, że przy stałym ciśnieniu zmiana temperatury czujnika (np. ogrzanie palcem) nie zmienia `alt` ani `vspd`; porównać wysokość z włączoną i wyłączoną korekcją przy tej samej temperaturze startu i zapisać wynik. Jeśli sprzęt jest niedostępny, zapisać wynik jako oczekujący i nie oznaczać zadania jako zweryfikowane.
+  - Wynik: OK — smoke test wykonany na sprzęcie (ESP32-C6-Zero + GY-63); zachowanie zgodne z oczekiwaniami.
 
 ## Workflow follow-up
 
