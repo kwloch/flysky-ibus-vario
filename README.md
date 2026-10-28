@@ -171,13 +171,21 @@ Firmware próbkuje ciśnienie co 50 ms (20 Hz) i co około 200 ms (5 Hz) loguje 
 i pojedynczego odczytu (`read FAILED ...; continuing`) są raportowane osobno, a program ponawia
 próby zamiast się zawieszać.
 
-Ciśnienie odniesienia to średnia z pierwszych 20 prawidłowych pomiarów po inicjalizacji (około 1 s
-przy 20 Hz); dopiero wtedy `alt` wynosi 0 i pojawiają się linie `VARIO:`. Wysokość jest dodatnia
-powyżej miejsca startu i ujemna poniżej. Wewnętrznie wysokość i vspd są liczone w cm i cm/s
-(format gotowy pod przyszłe ramki i-Bus), a w logu pokazywane w m i m/s. Prędkość wznoszenia
-pochodzi z filtra alpha-beta (`alpha=0.1`, `beta=0.02`) na wysokości; filtr jest nastawiony na
-stabilny vspd kosztem czasu odpowiedzi ~0,5–1 s, a po przerwie w pomiarach dłuższej niż 250 ms
-wznawia pracę bez fałszywego skoku. Nieudane lub poza-zakresowe odczyty nie aktualizują estymatora.
+Ciśnienie i temperatura odniesienia to średnie z pierwszych 20 prawidłowych pomiarów po inicjalizacji
+(około 1 s przy 20 Hz); dopiero wtedy `alt` wynosi 0 i pojawiają się linie `VARIO:`. Wysokość jest
+dodatnia powyżej miejsca startu i ujemna poniżej. Wysokość liczona jest wzorem
+`h = 44330 * (T_ref_K / 288.15) * (1 - (P/P_ref)^(1/5.255))`: przy `T_ref = 15 °C` jest to
+dotychczasowy wzór standardowy, a przy cieplejszym/zimniejszym starcie skala wysokości odpowiednio
+rośnie/maleje. Używana jest tylko temperatura odniesienia z okna startowego, nie bieżąca temperatura
+matrycy — dzięki temu self-heating i dryf elektroniki nie tworzą fałszywego wznoszenia. Ograniczenia:
+temperatura matrycy może różnić się od temperatury powietrza, a korekcja dotyczy wysokości względnej
+(brak QNH/GPS). Do porównania z wersją standardową zbuduj firmware z
+`PLATFORMIO_BUILD_FLAGS="-DVARIO_TEMPERATURE_CORRECTION=0" pio run -e esp32-c6-zero`. Wewnętrznie
+wysokość i vspd są liczone w cm i cm/s (format gotowy pod przyszłe ramki i-Bus), a w logu pokazywane
+w m i m/s. Prędkość wznoszenia pochodzi z filtra alpha-beta (`alpha=0.1`, `beta=0.02`) na wysokości;
+filtr jest nastawiony na stabilny vspd kosztem czasu odpowiedzi ~0,5–1 s, a po przerwie w pomiarach
+dłuższej niż 250 ms wznawia pracę bez fałszywego skoku. Nieudane lub poza-zakresowe odczyty nie
+aktualizują estymatora.
 
 Przy starcie firmware rejestruje dwa sensory i-Bus: Alt `0x83` (4 B, cm, `int32_t`) i Vspd `0x09`
 (2 B, cm/s, `int16_t`, nasycany do zakresu). Do uzyskania referencji wysyłane są zera, a potem
@@ -231,7 +239,7 @@ i wykonują wyłącznie na komputerze gospodarza. Nie zmienia ono domyślnego ta
 - [x] Odczyt MS5611 po I²C (ciśnienie + temperatura, sanity check PROM)
 - [x] Wysokość względna + prędkość wznoszenia (filtracja, stabilny vspd, opóźnienie ~0,5–1 s)
 - [ ] Re-zero wysokości i kompensacja wolnego dryfu ciśnienia (osobna zmiana/spec)
-- [ ] Korekcja temperaturowa wysokości ze zmierzonej temperatury MS5611 (długie loty, osobna zmiana/spec)
+- [x] Korekcja temperaturowa wysokości ze zmierzonej temperatury MS5611 (długie loty, osobna zmiana/spec)
 - [x] Emulacja sensorów i-Bus: `0x83` i `0x09` na ESP32-C6 (domyślnie `IBusBM`, opcjonalnie półdupleks)
 - [x] Test domyślnego `IBusBM` na FS-iA6B + FS-i6X (OpenI6X 2.3.0) — Alt i Vspd reagują
 - [ ] Test wariantu półdupleksowego (100 Ω) na FS-iA6B + FS-i6X — osobny punkt, odłożony

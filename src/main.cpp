@@ -158,7 +158,8 @@ void loop() {
     const Ms5611Error error = sensor.read();
     if (error == Ms5611Error::Ok) {
       const uint32_t dtMs = sampleMs - lastSampleMs;
-      vario.update(sensor.sample().pressurePa, dtMs);
+      const Sample& sample = sensor.sample();
+      vario.update(sample.pressurePa, sample.temperatureCentiC, dtMs);
       lastSampleMs = sampleMs;
     } else {
       Serial.printf("MS5611: t=%lu read FAILED %s; continuing\n",

@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstdint>
+#include <initializer_list>
 
 #include <unity.h>
 
@@ -17,10 +18,26 @@ int32_t pressureForAltitudePa(float altitudeM, float referencePa = kReferencePa)
   return static_cast<int32_t>(std::lround(pressure));
 }
 
+int32_t pressureForAltitudePa(float altitudeM, float referencePa,
+                              float referenceTemperatureK) {
+  const float scale = kVarioBarometricScaleM *
+                      (referenceTemperatureK / kVarioStandardTemperatureK);
+  const float pressure =
+      referencePa * std::pow(1.0f - altitudeM / scale, 5.255f);
+  return static_cast<int32_t>(std::lround(pressure));
+}
+
 void establishReference(VarioEstimator& vario,
                         int32_t pressurePa = static_cast<int32_t>(kReferencePa)) {
   for (uint32_t i = 0; i < kVarioReferenceSamples; ++i) {
     vario.update(pressurePa, kDtMs);
+  }
+}
+
+void establishReferenceAtTemperature(VarioEstimator& vario, int32_t pressurePa,
+                                     int32_t temperatureCentiC) {
+  for (uint32_t i = 0; i < kVarioReferenceSamples; ++i) {
+    vario.update(pressurePa, temperatureCentiC, kDtMs);
   }
 }
 
@@ -30,6 +47,36 @@ void settleAtAltitude(VarioEstimator& vario, float altitudeM) {
     vario.update(pressurePa, kDtMs);
   }
 }
+
+#if VARIO_TEMPERATURE_CORRECTION
+void assertClimbLatencyAtTemperature(int32_t temperatureCentiC) {
+  VarioEstimator vario;
+  vario.reset();
+  establishReferenceAtTemperature(vario, static_cast<int32_t>(kReferencePa),
+                                  temperatureCentiC);
+
+  const float referenceTemperatureK =
+      temperatureCentiCToKelvin(temperatureCentiC);
+  VarioReading at700Ms{};
+  VarioReading at1000Ms{};
+  for (int step = 1; step <= 20; ++step) {
+    const float trueAltitudeM = 2.0f * static_cast<float>(step) * 0.05f;
+    vario.update(pressureForAltitudePa(trueAltitudeM, kReferencePa,
+                                       referenceTemperatureK),
+                 temperatureCentiC, kDtMs);
+    if (step == 14) {
+      at700Ms = vario.reading();
+    }
+    if (step == 20) {
+      at1000Ms = vario.reading();
+    }
+  }
+
+  TEST_ASSERT_GREATER_OR_EQUAL_INT32(180, at700Ms.climbRateCentiMps);
+  TEST_ASSERT_FLOAT_WITHIN(0.2f, 2.0f,
+                           static_cast<float>(at1000Ms.altitudeCentiM) / 100.0f);
+}
+#endif
 
 }  // namespace
 
@@ -50,6 +97,8 @@ void testReferenceIsAveragedAndStartsAtZero() {
 
   TEST_ASSERT_TRUE(vario.hasReference());
   TEST_ASSERT_EQUAL_FLOAT(101001.0f, vario.referencePressurePa());
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, kVarioStandardTemperatureK,
+                           vario.referenceTemperatureK());
 
   const VarioReading reading = vario.reading();
   TEST_ASSERT_TRUE(reading.valid);
@@ -78,6 +127,147 @@ void testPressureToAltitudeKnownValues() {
                            pressureToAltitudeMeters(89876.0f, kReferencePa));
   TEST_ASSERT_FLOAT_WITHIN(0.1f, -1000.0f,
                            pressureToAltitudeMeters(113927.0f, kReferencePa));
+}
+
+void testPressureToAltitudeWithReferenceTemperature() {
+  const float standardTemperatureK = temperatureCentiCToKelvin(1500);
+  TEST_ASSERT_FLOAT_WITHIN(
+      0.1f, 1000.0f,
+      pressureToAltitudeMeters(89876.0f, kReferencePa, standardTemperatureK));
+  TEST_ASSERT_FLOAT_WITHIN(
+      0.1f, -1000.0f,
+      pressureToAltitudeMeters(113927.0f, kReferencePa, standardTemperatureK));
+
+#if VARIO_TEMPERATURE_CORRECTION
+  TEST_ASSERT_FLOAT_WITHIN(
+      0.1f, 1034.7f,
+      pressureToAltitudeMeters(89876.0f, kReferencePa,
+                               temperatureCentiCToKelvin(2500)));
+  TEST_ASSERT_FLOAT_WITHIN(
+      0.1f, 965.3f,
+      pressureToAltitudeMeters(89876.0f, kReferencePa,
+                               temperatureCentiCToKelvin(500)));
+#endif
+
+  TEST_ASSERT_FLOAT_WITHIN(
+      0.1f, 1000.0f,
+      pressureToAltitudeMeters(89876.0f, kReferencePa,
+                               temperatureCentiCToKelvin(-5000)));
+  TEST_ASSERT_FLOAT_WITHIN(
+      0.1f, 1000.0f,
+      pressureToAltitudeMeters(89876.0f, kReferencePa,
+                               temperatureCentiCToKelvin(9000)));
+}
+
+void testInversePressureMatchesTemperatureAltitude() {
+  const int32_t temperatures[] = {
+      1500,
+#if VARIO_TEMPERATURE_CORRECTION
+      500,
+      2500,
+#endif
+  };
+  const float altitudes[] = {-500.0f, 0.0f, 100.0f, 1000.0f};
+
+  for (int32_t temperatureCentiC : temperatures) {
+    const float referenceTemperatureK =
+        temperatureCentiCToKelvin(temperatureCentiC);
+    for (float altitudeM : altitudes) {
+      const int32_t pressurePa =
+          pressureForAltitudePa(altitudeM, kReferencePa, referenceTemperatureK);
+      TEST_ASSERT_FLOAT_WITHIN(
+          0.1f, altitudeM,
+          pressureToAltitudeMeters(static_cast<float>(pressurePa), kReferencePa,
+                                   referenceTemperatureK));
+    }
+  }
+}
+
+#if VARIO_TEMPERATURE_CORRECTION
+void testReferenceTemperatureIsAveraged() {
+  VarioEstimator vario;
+  vario.reset();
+
+  for (uint32_t i = 0; i < kVarioReferenceSamples; ++i) {
+    vario.update(static_cast<int32_t>(kReferencePa),
+                 2000 + static_cast<int32_t>(i) * 10, kDtMs);
+  }
+
+  TEST_ASSERT_TRUE(vario.hasReference());
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, temperatureCentiCToKelvin(2095),
+                           vario.referenceTemperatureK());
+
+  const VarioReading reading = vario.reading();
+  TEST_ASSERT_TRUE(reading.valid);
+  TEST_ASSERT_EQUAL_INT32(0, reading.altitudeCentiM);
+  TEST_ASSERT_EQUAL_INT32(0, reading.climbRateCentiMps);
+}
+#endif
+
+void testReferenceTemperatureStaysConstant() {
+  VarioEstimator vario;
+  vario.reset();
+  establishReferenceAtTemperature(vario, static_cast<int32_t>(kReferencePa),
+                                  2000);
+  const float referenceTemperatureK = vario.referenceTemperatureK();
+
+  for (int i = 0; i < 20; ++i) {
+    vario.update(static_cast<int32_t>(kReferencePa), 3000, kDtMs);
+  }
+
+  TEST_ASSERT_EQUAL_FLOAT(referenceTemperatureK, vario.referenceTemperatureK());
+  const VarioReading reading = vario.reading();
+  TEST_ASSERT_EQUAL_INT32(0, reading.altitudeCentiM);
+  TEST_ASSERT_TRUE(std::abs(reading.climbRateCentiMps) <= 5);
+}
+
+void testReferenceFallsBackToStandardWithoutValidTemperature() {
+  for (int32_t invalidTemperatureCentiC : {-5000, 9000}) {
+    VarioEstimator vario;
+    vario.reset();
+
+    for (uint32_t i = 0; i < kVarioReferenceSamples; ++i) {
+      vario.update(static_cast<int32_t>(kReferencePa),
+                   invalidTemperatureCentiC, kDtMs);
+    }
+
+    TEST_ASSERT_TRUE(vario.hasReference());
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, kVarioStandardTemperatureK,
+                             vario.referenceTemperatureK());
+    const VarioReading reading = vario.reading();
+    TEST_ASSERT_EQUAL_INT32(0, reading.altitudeCentiM);
+  }
+}
+
+void testCurrentTemperatureChangeDoesNotAffectAltitude() {
+  VarioEstimator vario;
+  vario.reset();
+  establishReferenceAtTemperature(vario, static_cast<int32_t>(kReferencePa),
+                                  2000);
+  const float referenceTemperatureK = vario.referenceTemperatureK();
+
+  for (int i = 0; i < 40; ++i) {
+    vario.update(static_cast<int32_t>(kReferencePa), 3000, kDtMs);
+  }
+
+  TEST_ASSERT_EQUAL_FLOAT(referenceTemperatureK, vario.referenceTemperatureK());
+  const VarioReading reading = vario.reading();
+  TEST_ASSERT_EQUAL_INT32(0, reading.altitudeCentiM);
+  TEST_ASSERT_TRUE(std::abs(reading.climbRateCentiMps) <= 5);
+}
+
+void testCurrentTemperatureNoiseDoesNotAffectClimbRate() {
+  VarioEstimator vario;
+  vario.reset();
+  establishReferenceAtTemperature(vario, static_cast<int32_t>(kReferencePa),
+                                  2000);
+
+  for (int sample = 0; sample < 40; ++sample) {
+    const int32_t temperatureCentiC = (sample % 2 == 0) ? 1950 : 2050;
+    vario.update(static_cast<int32_t>(kReferencePa), temperatureCentiC, kDtMs);
+    const VarioReading reading = vario.reading();
+    TEST_ASSERT_TRUE(std::abs(reading.climbRateCentiMps) <= 10);
+  }
 }
 
 void testAltitudeSignAboveAndBelowReference() {
@@ -136,6 +326,16 @@ void testClimbRateMeetsLatencyBudget() {
   TEST_ASSERT_FLOAT_WITHIN(0.2f, 2.0f,
                            static_cast<float>(at1000Ms.altitudeCentiM) / 100.0f);
 }
+
+#if VARIO_TEMPERATURE_CORRECTION
+void testClimbRateMeetsLatencyBudgetWarm() {
+  assertClimbLatencyAtTemperature(2500);
+}
+
+void testClimbRateMeetsLatencyBudgetCold() {
+  assertClimbLatencyAtTemperature(500);
+}
+#endif
 
 void testSingleOutlierIsAttenuated() {
   VarioEstimator vario;
@@ -199,9 +399,22 @@ int main(int, char**) {
   RUN_TEST(testReferenceIsAveragedAndStartsAtZero);
   RUN_TEST(testNoReadingBeforeReferenceWindow);
   RUN_TEST(testPressureToAltitudeKnownValues);
+  RUN_TEST(testPressureToAltitudeWithReferenceTemperature);
+  RUN_TEST(testInversePressureMatchesTemperatureAltitude);
+#if VARIO_TEMPERATURE_CORRECTION
+  RUN_TEST(testReferenceTemperatureIsAveraged);
+#endif
+  RUN_TEST(testReferenceTemperatureStaysConstant);
+  RUN_TEST(testReferenceFallsBackToStandardWithoutValidTemperature);
+  RUN_TEST(testCurrentTemperatureChangeDoesNotAffectAltitude);
+  RUN_TEST(testCurrentTemperatureNoiseDoesNotAffectClimbRate);
   RUN_TEST(testAltitudeSignAboveAndBelowReference);
   RUN_TEST(testStationaryPressureKeepsZero);
   RUN_TEST(testClimbRateMeetsLatencyBudget);
+#if VARIO_TEMPERATURE_CORRECTION
+  RUN_TEST(testClimbRateMeetsLatencyBudgetWarm);
+  RUN_TEST(testClimbRateMeetsLatencyBudgetCold);
+#endif
   RUN_TEST(testSingleOutlierIsAttenuated);
   RUN_TEST(testAlternatingNoiseIsAttenuated);
   RUN_TEST(testGapResetsWithoutSpikeAndKeepsReference);
